@@ -22,7 +22,7 @@
                     "Audit"
                 ],
                 "summary": "Run comprehensive business visibility audit",
-                "description": "Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, and generates AI-powered recommendations via GPT-4.",
+                "description": "Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, OSAT-style technical probes (Lighthouse/HTTP Observatory/extractors), and AI-powered recommendations via OpenAI.",
                 "operationId": "91357a67bd5ec58b9b70a5dd0ca10634",
                 "requestBody": {
                     "required": true,
@@ -55,14 +55,34 @@
                                         "example": "Digital Marketing"
                                     },
                                     "country": {
-                                        "description": "Country where business operates (required)",
-                                        "type": "string",
-                                        "example": "United States"
+                                        "description": "Country where business operates - can be a string or array of countries (required)",
+                                        "example": "United States",
+                                        "oneOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        ]
                                     },
                                     "city": {
-                                        "description": "Primary city of operation (required)",
-                                        "type": "string",
-                                        "example": "San Francisco"
+                                        "description": "City of operation - can be a string or array of cities (required)",
+                                        "example": "San Francisco",
+                                        "oneOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        ]
                                     },
                                     "target_audience": {
                                         "description": "Description of target customer base (required)",
@@ -120,6 +140,48 @@
                                         "audit_results": {
                                             "properties": {
                                                 "website_audit": {
+                                                    "properties": {
+                                                        "technical_seo": {
+                                                            "properties": {
+                                                                "score": {
+                                                                    "type": "integer",
+                                                                    "example": 70
+                                                                },
+                                                                "ssl_valid": {
+                                                                    "type": "boolean",
+                                                                    "example": true
+                                                                },
+                                                                "robots_txt_present": {
+                                                                    "type": "boolean",
+                                                                    "example": true
+                                                                },
+                                                                "sitemap_xml_present": {
+                                                                    "type": "boolean",
+                                                                    "example": true
+                                                                },
+                                                                "page_speed_estimate": {
+                                                                    "type": "string",
+                                                                    "example": "unknown"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "content_quality": {
+                                                            "type": "object"
+                                                        },
+                                                        "local_seo": {
+                                                            "type": "object"
+                                                        },
+                                                        "security_trust": {
+                                                            "type": "object"
+                                                        },
+                                                        "ux_accessibility": {
+                                                            "type": "object"
+                                                        },
+                                                        "brand_consistency": {
+                                                            "type": "object"
+                                                        }
+                                                    },
                                                     "type": "object"
                                                 },
                                                 "social_media_presence": {
@@ -127,34 +189,129 @@
                                                 },
                                                 "google_business_profile": {
                                                     "type": "object"
+                                                },
+                                                "osat_checks": {
+                                                    "properties": {
+                                                        "lighthouse": {
+                                                            "properties": {
+                                                                "scores": {
+                                                                    "type": "object",
+                                                                    "example": {
+                                                                        "performance": 0.92,
+                                                                        "seo": 0.88
+                                                                    }
+                                                                },
+                                                                "fetched_at": {
+                                                                    "type": "string",
+                                                                    "format": "date-time"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "security": {
+                                                            "type": "object",
+                                                            "example": {
+                                                                "score": 110,
+                                                                "grade": "B"
+                                                            }
+                                                        },
+                                                        "extractor": {
+                                                            "type": "object",
+                                                            "example": {
+                                                                "headers": {
+                                                                    "h1": {
+                                                                        "count": 1
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        "sitemap": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "internal_links": {
+                                                            "type": "object",
+                                                            "example": {
+                                                                "summary": {
+                                                                    "pages_crawled": 5
+                                                                }
+                                                            }
+                                                        },
+                                                        "keywords": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "summary": {
+                                                            "type": "string",
+                                                            "example": "First sentences of page text"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "ai_recommendations": {
+                                                    "properties": {
+                                                        "content": {
+                                                            "type": "string",
+                                                            "example": "Prioritize fixing missing robots.txt and sitemap, add meta descriptions..."
+                                                        },
+                                                        "success": {
+                                                            "type": "boolean",
+                                                            "example": true
+                                                        },
+                                                        "model_used": {
+                                                            "type": "string",
+                                                            "example": "gpt-4o-mini"
+                                                        },
+                                                        "tokens_used": {
+                                                            "type": "object",
+                                                            "nullable": true
+                                                        },
+                                                        "note": {
+                                                            "type": "string",
+                                                            "nullable": true
+                                                        },
+                                                        "error": {
+                                                            "type": "string",
+                                                            "nullable": true
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 }
                                             },
                                             "type": "object"
                                         },
-                                        "scores": {
+                                        "metadata": {
                                             "properties": {
-                                                "website_score": {
-                                                    "type": "integer",
-                                                    "example": 75
+                                                "model_used": {
+                                                    "type": "string",
+                                                    "example": "gpt-4o-mini"
                                                 },
-                                                "social_media_score": {
-                                                    "type": "integer",
-                                                    "example": 60
+                                                "audit_method": {
+                                                    "type": "string",
+                                                    "example": "manual_fetch_with_osat_probes_and_ai_recommendations"
                                                 },
-                                                "overall_score": {
-                                                    "type": "integer",
-                                                    "example": 68
+                                                "timestamp": {
+                                                    "type": "string",
+                                                    "example": "2025-12-16T10:44:23+00:00"
+                                                },
+                                                "execution_time": {
+                                                    "type": "string",
+                                                    "example": "14.54 seconds"
+                                                },
+                                                "note": {
+                                                    "type": "string",
+                                                    "example": "OSAT probes added; AI recommendations included; social/GBP web search disabled."
                                                 }
                                             },
                                             "type": "object"
                                         },
-                                        "ai_recommendations": {
-                                            "description": "GPT-4 generated recommendations and insights",
-                                            "type": "object"
-                                        },
-                                        "execution_time": {
+                                        "timestamp": {
                                             "type": "string",
-                                            "example": "15.32 seconds"
+                                            "example": "2025-12-16T10:44:23+00:00"
                                         }
                                     },
                                     "type": "object"

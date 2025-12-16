@@ -84,7 +84,12 @@ class OpenAIService
     {
         $businessInfo = "Business: {$input['business_name']}\n";
         $businessInfo .= "Industry: {$input['industry']}\n";
-        $businessInfo .= "Location: {$input['city']}, {$input['country']}\n";
+
+        // Handle multiple locations
+        $cities = is_array($input['city']) ? implode(', ', $input['city']) : $input['city'];
+        $countries = is_array($input['country']) ? implode(', ', $input['country']) : $input['country'];
+        $businessInfo .= "Location: {$cities}, {$countries}\n";
+
         $businessInfo .= "Website: {$input['website_url']}\n";
         $businessInfo .= "Target Audience: {$input['target_audience']}\n";
 

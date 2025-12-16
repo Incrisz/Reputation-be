@@ -10,8 +10,8 @@ class GoogleBusinessAuditService
 {
     private Client $client;
     private string $businessName;
-    private string $city;
-    private string $country;
+    private array $cities;
+    private array $countries;
 
     public function __construct()
     {
@@ -27,11 +27,12 @@ class GoogleBusinessAuditService
     public function audit(array $input): array
     {
         $this->businessName = $input['business_name'];
-        $this->city = $input['city'];
-        $this->country = $input['country'];
+        $this->cities = (array) $input['city'];
+        $this->countries = (array) $input['country'];
 
-        // Simulate Google search for business listing
-        $searchQuery = urlencode("{$this->businessName} {$this->city} {$this->country}");
+        // Create search query with all locations
+        $locations = implode(' ', array_merge($this->cities, $this->countries));
+        $searchQuery = urlencode("{$this->businessName} {$locations}");
 
         $result = [
             'search_query' => $searchQuery,
@@ -85,10 +86,11 @@ class GoogleBusinessAuditService
     private function checkLocationSignals(): array
     {
         return [
-            'city_match' => $this->city,
-            'country_match' => $this->country,
+            'cities' => $this->cities,
+            'countries' => $this->countries,
             'map_listing_visible' => null,
             'service_area_defined' => null,
+            'multi_location' => count($this->cities) > 1 || count($this->countries) > 1,
         ];
     }
 

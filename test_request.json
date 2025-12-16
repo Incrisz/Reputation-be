@@ -3,7 +3,7 @@
   "business_name": "Apple Inc",
   "industry": "Technology",
   "country": "United States",
-  "city": "Cupertino",
+  "city": ["Abuja", "Lagos", "Port Harcourt"],
   "target_audience": "Consumers and professionals seeking premium technology products",
   "keywords": ["iPhone", "MacBook", "consumer electronics"]
 }
@@ -13,7 +13,7 @@
   "website_url": "https://www.cyfamod.com",
   "business_name": "cyfamod technologies",
   "industry": "Technology",
-  "country": "nigeria",
+  "country": ["Nigeria", "uk"],
   "city": "abuja",
   "target_audience": "Consumers and professionals seeking premium technology services",
   "keywords": ["branding", "web-development", "marketing"]

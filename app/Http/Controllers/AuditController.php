@@ -3,10 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\BusinessAuditRequest;
-use App\Services\Audit\WebsiteAuditService;
-use App\Services\Audit\SocialMediaAuditService;
-use App\Services\Audit\GoogleBusinessAuditService;
-use App\Services\Audit\OpenAIService;
+use App\Services\Audit\AIAuditEngine;
 use Illuminate\Http\JsonResponse;
 use OpenApi\Attributes as OA;
 
@@ -25,27 +22,17 @@ use OpenApi\Attributes as OA;
 )]
 class AuditController extends Controller
 {
-    private WebsiteAuditService $websiteAudit;
-    private SocialMediaAuditService $socialMediaAudit;
-    private GoogleBusinessAuditService $googleBusinessAudit;
-    private OpenAIService $openAIService;
+    private AIAuditEngine $aiAuditEngine;
 
-    public function __construct(
-        WebsiteAuditService $websiteAudit,
-        SocialMediaAuditService $socialMediaAudit,
-        GoogleBusinessAuditService $googleBusinessAudit,
-        OpenAIService $openAIService
-    ) {
-        $this->websiteAudit = $websiteAudit;
-        $this->socialMediaAudit = $socialMediaAudit;
-        $this->googleBusinessAudit = $googleBusinessAudit;
-        $this->openAIService = $openAIService;
+    public function __construct(AIAuditEngine $aiAuditEngine)
+    {
+        $this->aiAuditEngine = $aiAuditEngine;
     }
 
     #[OA\Post(
         path: '/api/audit/run',
         summary: 'Run comprehensive business visibility audit',
-        description: 'Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, and generates AI-powered recommendations via GPT-4.',
+        description: 'Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, OSAT-style technical probes (Lighthouse/HTTP Observatory/extractors), and AI-powered recommendations via OpenAI.',
         tags: ['Audit'],
         requestBody: new OA\RequestBody(
             required: true,
@@ -73,15 +60,21 @@ class AuditController extends Controller
                     ),
                     new OA\Property(
                         property: 'country',
-                        type: 'string',
+                        oneOf: [
+                            new OA\Schema(type: 'string'),
+                            new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))
+                        ],
                         example: 'United States',
-                        description: 'Country where business operates (required)'
+                        description: 'Country where business operates - can be a string or array of countries (required)'
                     ),
                     new OA\Property(
                         property: 'city',
-                        type: 'string',
+                        oneOf: [
+                            new OA\Schema(type: 'string'),
+                            new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))
+                        ],
                         example: 'San Francisco',
-                        description: 'Primary city of operation (required)'
+                        description: 'City of operation - can be a string or array of cities (required)'
                     ),
                     new OA\Property(
                         property: 'target_audience',
@@ -131,29 +124,86 @@ class AuditController extends Controller
                             property: 'audit_results',
                             type: 'object',
                             properties: [
-                                new OA\Property(property: 'website_audit', type: 'object'),
+                                new OA\Property(
+                                    property: 'website_audit',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(
+                                            property: 'technical_seo',
+                                            type: 'object',
+                                            properties: [
+                                                new OA\Property(property: 'score', type: 'integer', example: 70),
+                                                new OA\Property(property: 'ssl_valid', type: 'boolean', example: true),
+                                                new OA\Property(property: 'robots_txt_present', type: 'boolean', example: true),
+                                                new OA\Property(property: 'sitemap_xml_present', type: 'boolean', example: true),
+                                                new OA\Property(
+                                                    property: 'page_speed_estimate',
+                                                    type: 'object',
+                                                    properties: [
+                                                        new OA\Property(property: 'desktop_ms', type: 'number', example: 420.5),
+                                                        new OA\Property(property: 'mobile_ms', type: 'number', example: 5792.1),
+                                                    ]
+                                                ),
+                                            ]
+                                        ),
+                                        new OA\Property(property: 'content_quality', type: 'object'),
+                                        new OA\Property(property: 'local_seo', type: 'object'),
+                                        new OA\Property(property: 'security_trust', type: 'object'),
+                                        new OA\Property(property: 'ux_accessibility', type: 'object'),
+                                        new OA\Property(property: 'brand_consistency', type: 'object'),
+                                    ]
+                                ),
                                 new OA\Property(property: 'social_media_presence', type: 'object'),
                                 new OA\Property(property: 'google_business_profile', type: 'object'),
+                                new OA\Property(
+                                    property: 'osat_checks',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(
+                                            property: 'lighthouse',
+                                            type: 'object',
+                                            properties: [
+                                                new OA\Property(property: 'scores', type: 'object', example: ['performance' => 0.92, 'seo' => 0.88]),
+                                                new OA\Property(property: 'fetched_at', type: 'string', format: 'date-time')
+                                            ]
+                                        ),
+                                        new OA\Property(property: 'security', type: 'object', example: ['score' => 110, 'grade' => 'B']),
+                                        new OA\Property(property: 'extractor', type: 'object', example: ['headers' => ['h1' => ['count' => 1]]]),
+                                        new OA\Property(property: 'sitemap', type: 'array', items: new OA\Items(type: 'object')),
+                                        new OA\Property(property: 'internal_links', type: 'object', example: ['summary' => ['pages_crawled' => 5]]),
+                                        new OA\Property(property: 'keywords', type: 'array', items: new OA\Items(type: 'object')),
+                                        new OA\Property(property: 'summary', type: 'string', example: 'First sentences of page text')
+                                    ]
+                                ),
+                                new OA\Property(
+                                    property: 'ai_recommendations',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'content', type: 'string', example: 'Prioritize fixing missing robots.txt and sitemap, add meta descriptions...'),
+                                        new OA\Property(property: 'success', type: 'boolean', example: true),
+                                        new OA\Property(property: 'model_used', type: 'string', example: 'gpt-4o-mini'),
+                                        new OA\Property(property: 'tokens_used', type: 'object', nullable: true),
+                                        new OA\Property(property: 'note', type: 'string', nullable: true),
+                                        new OA\Property(property: 'error', type: 'string', nullable: true),
+                                    ]
+                                )
                             ]
                         ),
                         new OA\Property(
-                            property: 'scores',
+                            property: 'metadata',
                             type: 'object',
                             properties: [
-                                new OA\Property(property: 'website_score', type: 'integer', example: 75),
-                                new OA\Property(property: 'social_media_score', type: 'integer', example: 60),
-                                new OA\Property(property: 'overall_score', type: 'integer', example: 68),
+                                new OA\Property(property: 'model_used', type: 'string', example: 'gpt-4o-mini'),
+                                new OA\Property(property: 'audit_method', type: 'string', example: 'manual_fetch_with_osat_probes_and_ai_recommendations'),
+                                new OA\Property(property: 'timestamp', type: 'string', example: '2025-12-16T10:44:23+00:00'),
+                                new OA\Property(property: 'execution_time', type: 'string', example: '14.54 seconds'),
+                                new OA\Property(property: 'note', type: 'string', example: 'OSAT probes added; AI recommendations included; social/GBP web search disabled.')
                             ]
                         ),
                         new OA\Property(
-                            property: 'ai_recommendations',
-                            type: 'object',
-                            description: 'GPT-4 generated recommendations and insights'
-                        ),
-                        new OA\Property(
-                            property: 'execution_time',
+                            property: 'timestamp',
                             type: 'string',
-                            example: '15.32 seconds'
+                            example: '2025-12-16T10:44:23+00:00'
                         ),
                     ]
                 )
@@ -190,40 +240,23 @@ class AuditController extends Controller
             // Get validated input
             $input = $request->validated();
 
-            // Step 1: Run Website Audit
-            $websiteAuditResults = $this->websiteAudit->audit($input);
-
-            // Step 2: Run Social Media Detection
-            $socialMediaResults = $this->socialMediaAudit->audit($input);
-
-            // Step 3: Run Google Business Profile Detection
-            $googleBusinessResults = $this->googleBusinessAudit->audit($input);
-
-            // Step 4: Aggregate structured data
-            $auditResults = [
-                'website_audit' => $websiteAuditResults,
-                'social_media_presence' => $socialMediaResults,
-                'google_business_profile' => $googleBusinessResults,
-            ];
-
-            // Step 5: Calculate scores
-            $scores = $this->calculateScores($auditResults);
-
-            // Step 6: Send to GPT-4 for AI recommendations
-            $aiRecommendations = $this->openAIService->generateRecommendations($auditResults, $input);
+            // Run AI-powered comprehensive audit
+            $auditResponse = $this->aiAuditEngine->runComprehensiveAudit($input);
 
             // Calculate execution time
             $executionTime = round(microtime(true) - $startTime, 2);
 
-            // Step 7: Return comprehensive response
+            // Return comprehensive AI-powered response
             return response()->json([
-                'success' => true,
-                'message' => 'Audit completed successfully',
+                'success' => $auditResponse['success'],
+                'message' => $auditResponse['success']
+                    ? 'AI-powered audit completed successfully'
+                    : 'Audit completed with fallback data (OpenAI API key not configured)',
                 'input' => $input,
-                'audit_results' => $auditResults,
-                'scores' => $scores,
-                'ai_recommendations' => $aiRecommendations,
-                'execution_time' => $executionTime . ' seconds',
+                'audit_results' => $auditResponse['audit_results'],
+                'metadata' => array_merge($auditResponse['metadata'], [
+                    'execution_time' => $executionTime . ' seconds',
+                ]),
                 'timestamp' => now()->toIso8601String(),
             ], 200);
 
@@ -235,93 +268,5 @@ class AuditController extends Controller
                 'trace' => config('app.debug') ? $e->getTraceAsString() : null,
             ], 500);
         }
-    }
-
-    /**
-     * Calculate scores based on audit results
-     */
-    private function calculateScores(array $auditResults): array
-    {
-        $websiteScore = $this->calculateWebsiteScore($auditResults['website_audit']);
-        $socialMediaScore = $this->calculateSocialMediaScore($auditResults['social_media_presence']);
-        $googleBusinessScore = $this->calculateGoogleBusinessScore($auditResults['google_business_profile']);
-
-        $overallScore = round(($websiteScore + $socialMediaScore + $googleBusinessScore) / 3);
-
-        return [
-            'website_score' => $websiteScore,
-            'social_media_score' => $socialMediaScore,
-            'google_business_score' => $googleBusinessScore,
-            'overall_score' => $overallScore,
-            'grade' => $this->getGrade($overallScore),
-        ];
-    }
-
-    private function calculateWebsiteScore(array $websiteAudit): int
-    {
-        $score = 0;
-        $maxScore = 100;
-
-        // Technical SEO (20 points)
-        if ($websiteAudit['technical_seo']['robots_txt_present']) $score += 7;
-        if ($websiteAudit['technical_seo']['sitemap_xml_present']) $score += 7;
-        if (count($websiteAudit['technical_seo']['broken_links']) === 0) $score += 6;
-
-        // Content Quality (20 points)
-        if ($websiteAudit['content_quality']['word_count'] > 300) $score += 10;
-        if ($websiteAudit['content_quality']['images_with_alt'] > 0) $score += 10;
-
-        // Security & Trust (20 points)
-        if ($websiteAudit['security_trust']['ssl_valid']) $score += 10;
-        if ($websiteAudit['security_trust']['privacy_policy_present']) $score += 5;
-        if ($websiteAudit['security_trust']['terms_present']) $score += 5;
-
-        // UX & Accessibility (15 points)
-        if ($websiteAudit['ux_accessibility']['mobile_viewport']) $score += 10;
-        if ($websiteAudit['ux_accessibility']['has_lazy_loading']) $score += 5;
-
-        // Indexability (15 points)
-        if (!$websiteAudit['indexability']['noindex_found']) $score += 8;
-        if ($websiteAudit['indexability']['canonical_present']) $score += 7;
-
-        // Brand Consistency (10 points)
-        if ($websiteAudit['brand_consistency']['business_name_present']) $score += 4;
-        if ($websiteAudit['brand_consistency']['logo_present']) $score += 3;
-        if ($websiteAudit['brand_consistency']['favicon_present']) $score += 3;
-
-        return min($score, $maxScore);
-    }
-
-    private function calculateSocialMediaScore(array $socialMedia): int
-    {
-        $totalPlatforms = $socialMedia['total_platforms_detected'];
-        $consistencyScore = $socialMedia['cross_platform_consistency']['consistency_score'];
-
-        // Base score on number of platforms (max 70 points)
-        $platformScore = min($totalPlatforms * 14, 70);
-
-        // Consistency adds up to 30 points
-        $consistencyPoints = round($consistencyScore * 0.3);
-
-        return min($platformScore + $consistencyPoints, 100);
-    }
-
-    private function calculateGoogleBusinessScore(array $googleBusiness): int
-    {
-        // Since Google Business detection is simulated, return neutral score
-        // In production, this would analyze actual GBP data
-        return 50; // Neutral score indicating "needs verification"
-    }
-
-    private function getGrade(int $score): string
-    {
-        return match (true) {
-            $score >= 90 => 'A+ Excellent',
-            $score >= 80 => 'A Good',
-            $score >= 70 => 'B Above Average',
-            $score >= 60 => 'C Average',
-            $score >= 50 => 'D Below Average',
-            default => 'F Poor',
-        };
     }
 }
