@@ -1,60 +1,418 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# BizVisibility AI - Business Reputation & Visibility Audit API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+This platform uses AI to evaluate how visible a business is online, from its website to search results and social platforms. It ranks the business and provides intelligent, easy-to-understand recommendations to help it grow digitally.
 
-## About Laravel
+Our AI-powered app checks how easy it is to find a business online and how well it is presented. It scores the business and tells the owner exactly what to improve to get better visibility and more customers.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🚀 Overview
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+A Laravel-based backend API that provides comprehensive business visibility audits through a **single controller endpoint**, fully testable via **Swagger UI**.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Key Features
 
-## Learning Laravel
+- ✅ **Single Controller Architecture** - All audit logic in one controller
+- ✅ **No Database Required** - Stateless, pure API
+- ✅ **No Authentication** - Open API for proof-of-concept
+- ✅ **Manual Scraping** - No external SEO/social APIs
+- ✅ **AI-Powered Recommendations** - GPT-4 integration
+- ✅ **Comprehensive Swagger Documentation** - Full OpenAPI spec
+- ✅ **Real-time Auditing** - On-demand execution
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## 📋 Audit Modules
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 1. Website Audit & SEO On-Site Analysis
+- **Technical SEO**: Broken links, robots.txt, sitemap.xml
+- **Content Quality**: Word count, meta tags, image alt text
+- **Local SEO**: NAP consistency, location keywords
+- **Security & Trust**: SSL, privacy policy, terms pages
+- **UX & Accessibility**: Mobile viewport, lazy loading
+- **Indexability**: Meta robots, canonical tags
+- **Brand Consistency**: Business name, logo, favicon
 
-## Laravel Sponsors
+### 2. Social Media Detection
+- Detects presence on: Facebook, Instagram, X (Twitter), LinkedIn, TikTok
+- Profile validation and completeness checks
+- Cross-platform consistency analysis
+- Website ↔ social linking verification
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### 3. Google Business Profile Detection
+- Business listing detection via search simulation
+- Profile completeness assessment
+- NAP consistency verification
+- Trust signals analysis
 
-### Premium Partners
+### 4. AI-Powered Recommendations (GPT-4)
+- SEO improvement strategies
+- Online visibility optimization
+- Social media growth tactics
+- Content strategy recommendations
+- Quick wins and long-term roadmap
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## 🛠️ Tech Stack
 
-## Contributing
+- **Framework**: Laravel 12
+- **PHP**: 8.2+
+- **HTTP Client**: Guzzle
+- **API Documentation**: L5-Swagger (OpenAPI 3.0)
+- **AI Integration**: OpenAI GPT-4 API
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## ⚙️ Installation
 
-## Code of Conduct
+### 1. Clone and Install Dependencies
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+cd /home/cloud/Videos/Reputation-be
+composer install
+```
 
-## Security Vulnerabilities
+### 2. Configure Environment
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-## License
+### 3. Configure OpenAI (Optional)
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-# Reputation-be
+Edit `.env` and configure your OpenAI settings:
+
+```env
+OPENAI_API_KEY=sk-your-api-key-here
+OPENAI_MODEL=gpt-4o
+```
+
+**Available Models:**
+- `gpt-4o` - Recommended (fast, cost-effective, excellent quality)
+- `gpt-4-turbo-preview` - Default (balanced speed and quality)
+- `gpt-4o-mini` - Budget option (fastest, cheapest)
+- `gpt-3.5-turbo` - Ultra-budget (very cheap, good quality)
+
+**Note**: The API works without an OpenAI key - it will use comprehensive fallback recommendations. See [OPENAI_CONFIGURATION.md](OPENAI_CONFIGURATION.md) for detailed setup.
+
+### 4. Generate Swagger Documentation
+
+```bash
+php artisan l5-swagger:generate
+```
+
+### 5. Start Development Server
+
+```bash
+php artisan serve
+```
+
+The API will be available at `http://localhost:8000`
+
+## 📖 API Documentation
+
+### Access Swagger UI
+
+Once the server is running, access the interactive API documentation:
+
+```
+http://localhost:8000/api/documentation
+```
+
+### Endpoint
+
+**POST** `/api/audit/run`
+
+Executes a comprehensive business visibility audit including website analysis, social media detection, Google Business Profile check, and AI recommendations.
+
+### Request Body
+
+```json
+{
+  "website_url": "https://example.com",
+  "business_name": "Acme Digital Solutions",
+  "industry": "Digital Marketing",
+  "country": "United States",
+  "city": "San Francisco",
+  "target_audience": "Small to medium-sized businesses looking to improve their digital presence",
+  "competitors": [
+    "https://competitor1.com",
+    "https://competitor2.com"
+  ],
+  "keywords": [
+    "digital marketing",
+    "SEO services",
+    "social media management"
+  ]
+}
+```
+
+### Required Fields
+- `website_url` - Full URL of the business website
+- `business_name` - Official business name
+- `industry` - Business industry or category
+- `country` - Country where business operates
+- `city` - Primary city of operation
+- `target_audience` - Description of target customer base
+
+### Optional Fields
+- `competitors` - Array of competitor website URLs
+- `keywords` - Array of target keywords
+
+### Response Structure
+
+```json
+{
+  "success": true,
+  "message": "Audit completed successfully",
+  "input": {
+    "website_url": "https://example.com",
+    "business_name": "Acme Digital Solutions",
+    ...
+  },
+  "audit_results": {
+    "website_audit": {
+      "technical_seo": {...},
+      "content_quality": {...},
+      "local_seo": {...},
+      "security_trust": {...},
+      "ux_accessibility": {...},
+      "indexability": {...},
+      "brand_consistency": {...}
+    },
+    "social_media_presence": {
+      "platforms": {
+        "facebook": {...},
+        "instagram": {...},
+        "twitter_x": {...},
+        "linkedin": {...},
+        "tiktok": {...}
+      },
+      "total_platforms_detected": 3,
+      "cross_platform_consistency": {...}
+    },
+    "google_business_profile": {
+      "listing_detected": {...},
+      "business_identity": {...},
+      "profile_completeness": {...},
+      "location_signals": {...},
+      "trust_signals": {...}
+    }
+  },
+  "scores": {
+    "website_score": 75,
+    "social_media_score": 60,
+    "google_business_score": 50,
+    "overall_score": 62,
+    "grade": "C Average"
+  },
+  "ai_recommendations": {
+    "success": true,
+    "recommendations": "# Detailed AI-generated recommendations...",
+    "model_used": "gpt-4-turbo-preview",
+    "tokens_used": {...}
+  },
+  "execution_time": "15.32 seconds",
+  "timestamp": "2025-12-16T10:30:45+00:00"
+}
+```
+
+## 🧪 Testing via Swagger UI
+
+1. Navigate to `http://localhost:8000/api/documentation`
+2. Click on **POST /api/audit/run**
+3. Click **"Try it out"**
+4. Fill in the request body with your test data
+5. Click **"Execute"**
+6. Review the comprehensive audit results below
+
+### Sample Test Data
+
+```json
+{
+  "website_url": "https://www.apple.com",
+  "business_name": "Apple Inc",
+  "industry": "Technology",
+  "country": "United States",
+  "city": "Cupertino",
+  "target_audience": "Consumers and professionals seeking premium technology products",
+  "keywords": ["iPhone", "MacBook", "consumer electronics"]
+}
+```
+
+## 🏗️ Architecture
+
+### Single Controller Design
+
+All audit logic is consolidated in [app/Http/Controllers/AuditController.php](app/Http/Controllers/AuditController.php):
+
+1. **Input Validation** - via `BusinessAuditRequest`
+2. **Website Audit** - `WebsiteAuditService`
+3. **Social Media Detection** - `SocialMediaAuditService`
+4. **Google Business Detection** - `GoogleBusinessAuditService`
+5. **Score Calculation** - Internal controller methods
+6. **AI Recommendations** - `OpenAIService` (GPT-4)
+7. **Response Assembly** - Structured JSON output
+
+### Service Classes
+
+```
+app/Services/Audit/
+├── WebsiteAuditService.php      # Website SEO & technical checks
+├── SocialMediaAuditService.php  # Social platform detection
+├── GoogleBusinessAuditService.php # GBP detection (simulated)
+└── OpenAIService.php            # GPT-4 integration
+```
+
+## 📊 Scoring System
+
+### Website Score (0-100)
+- Technical SEO: 20 points
+- Content Quality: 20 points
+- Security & Trust: 20 points
+- UX & Accessibility: 15 points
+- Indexability: 15 points
+- Brand Consistency: 10 points
+
+### Social Media Score (0-100)
+- Platform presence: 70 points (14 per platform)
+- Cross-platform consistency: 30 points
+
+### Overall Grade
+- A+ (90-100): Excellent
+- A (80-89): Good
+- B (70-79): Above Average
+- C (60-69): Average
+- D (50-59): Below Average
+- F (0-49): Poor
+
+## 🔧 Configuration
+
+### Swagger Configuration
+
+Edit `config/l5-swagger.php` to customize:
+- API title and description
+- Server URLs
+- Documentation path
+- Annotation scan paths
+
+### OpenAI Configuration
+
+Edit `config/services.php`:
+
+```php
+'openai' => [
+    'api_key' => env('OPENAI_API_KEY'),
+],
+```
+
+## 🚨 Important Notes
+
+### Google Business Profile Detection
+
+The current implementation **simulates** Google search results because:
+- Google actively blocks automated scraping
+- Production implementation would require:
+  - Rotating proxies
+  - Rate limiting
+  - CAPTCHA solving
+  - Or Google Places API (excluded per requirements)
+
+The API returns structured placeholders showing what would be detected in production.
+
+### SSL Certificate Verification
+
+For development purposes, SSL verification is disabled in Guzzle clients. **Enable verification in production**:
+
+```php
+'verify' => true,  // In production
+```
+
+## 📝 Development
+
+### Regenerate Swagger Docs
+
+After modifying controller annotations:
+
+```bash
+php artisan l5-swagger:generate
+```
+
+### Clear Cache
+
+```bash
+php artisan config:clear
+php artisan cache:clear
+```
+
+### Check Routes
+
+```bash
+php artisan route:list --path=api
+```
+
+## 🎯 Use Cases
+
+1. **Web Agencies**: Audit client websites before onboarding
+2. **SEO Consultants**: Generate comprehensive SEO reports
+3. **Business Owners**: Self-assessment of online presence
+4. **Marketing Teams**: Competitive analysis and tracking
+5. **Sales Teams**: Lead qualification and needs assessment
+
+## 📚 API Response Examples
+
+### Successful Audit
+
+```json
+{
+  "success": true,
+  "message": "Audit completed successfully",
+  "scores": {
+    "overall_score": 68,
+    "grade": "C Average"
+  },
+  "execution_time": "12.45 seconds"
+}
+```
+
+### Validation Error
+
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": {
+    "website_url": ["The website URL field is required."]
+  }
+}
+```
+
+### Server Error
+
+```json
+{
+  "success": false,
+  "message": "Audit failed",
+  "error": "Connection timeout"
+}
+```
+
+## 🤝 Contributing
+
+This is a proof-of-concept implementation. For production use, consider:
+
+1. Implementing proper Google Business Profile scraping or API integration
+2. Adding rate limiting and caching
+3. Implementing authentication/authorization
+4. Adding database logging for audit history
+5. Enhancing error handling and retry logic
+6. Adding more comprehensive test coverage
+
+## 📄 License
+
+MIT License
+
+## 🔗 Resources
+
+- [Laravel Documentation](https://laravel.com/docs)
+- [L5-Swagger Documentation](https://github.com/DarkaOnLine/L5-Swagger)
+- [OpenAI API Documentation](https://platform.openai.com/docs)
+- [OpenAPI Specification](https://swagger.io/specification/)
+
+---
+
+**Built with Laravel 12 & AI-Powered Intelligence** 🚀

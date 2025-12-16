@@ -1,0 +1,142 @@
+{
+  "info": {
+    "name": "BizVisibility AI - Business Audit API",
+    "description": "Comprehensive business visibility audit API with AI-powered recommendations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Run Business Audit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"website_url\": \"https://www.apple.com\",\n  \"business_name\": \"Apple Inc\",\n  \"industry\": \"Technology\",\n  \"country\": \"United States\",\n  \"city\": \"Cupertino\",\n  \"target_audience\": \"Consumers and professionals seeking premium technology products\",\n  \"competitors\": [\n    \"https://www.samsung.com\",\n    \"https://www.microsoft.com\"\n  ],\n  \"keywords\": [\n    \"iPhone\",\n    \"MacBook\",\n    \"consumer electronics\"\n  ]\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/audit/run",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "api",
+            "audit",
+            "run"
+          ]
+        },
+        "description": "Execute a comprehensive business visibility audit including website analysis, social media detection, Google Business Profile check, and AI recommendations."
+      },
+      "response": []
+    },
+    {
+      "name": "Run Business Audit - Minimal Data",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"website_url\": \"https://www.example.com\",\n  \"business_name\": \"Example Business\",\n  \"industry\": \"Digital Marketing\",\n  \"country\": \"United States\",\n  \"city\": \"San Francisco\",\n  \"target_audience\": \"Small to medium-sized businesses\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/audit/run",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "api",
+            "audit",
+            "run"
+          ]
+        },
+        "description": "Test with minimal required fields only (no competitors or keywords)"
+      },
+      "response": []
+    },
+    {
+      "name": "Validation Error Example",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"website_url\": \"not-a-valid-url\",\n  \"business_name\": \"Test Business\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/audit/run",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "api",
+            "audit",
+            "run"
+          ]
+        },
+        "description": "Example of validation error response (missing required fields and invalid URL)"
+      },
+      "response": []
+    },
+    {
+      "name": "Access Swagger Documentation",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/documentation",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "api",
+            "documentation"
+          ]
+        },
+        "description": "Access the interactive Swagger UI documentation"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ]
+}

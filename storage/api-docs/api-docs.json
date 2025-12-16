@@ -1,0 +1,221 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Business Reputation & Visibility Audit API",
+        "description": "A comprehensive API for auditing business online presence, SEO, social media, and Google Business Profile. Provides AI-powered recommendations via GPT-4.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8000",
+            "description": "Local development server"
+        },
+        {
+            "url": "http://localhost:8000/api",
+            "description": "API base path"
+        }
+    ],
+    "paths": {
+        "/api/audit/run": {
+            "post": {
+                "tags": [
+                    "Audit"
+                ],
+                "summary": "Run comprehensive business visibility audit",
+                "description": "Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, and generates AI-powered recommendations via GPT-4.",
+                "operationId": "91357a67bd5ec58b9b70a5dd0ca10634",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "website_url",
+                                    "business_name",
+                                    "industry",
+                                    "country",
+                                    "city",
+                                    "target_audience"
+                                ],
+                                "properties": {
+                                    "website_url": {
+                                        "description": "Full URL of the business website (required)",
+                                        "type": "string",
+                                        "format": "url",
+                                        "example": "https://example.com"
+                                    },
+                                    "business_name": {
+                                        "description": "Official business name (required)",
+                                        "type": "string",
+                                        "example": "Acme Digital Solutions"
+                                    },
+                                    "industry": {
+                                        "description": "Business industry or category (required)",
+                                        "type": "string",
+                                        "example": "Digital Marketing"
+                                    },
+                                    "country": {
+                                        "description": "Country where business operates (required)",
+                                        "type": "string",
+                                        "example": "United States"
+                                    },
+                                    "city": {
+                                        "description": "Primary city of operation (required)",
+                                        "type": "string",
+                                        "example": "San Francisco"
+                                    },
+                                    "target_audience": {
+                                        "description": "Description of target customer base (required)",
+                                        "type": "string",
+                                        "example": "Small to medium-sized businesses looking to improve their digital presence"
+                                    },
+                                    "competitors": {
+                                        "description": "Optional list of competitor websites",
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "https://competitor1.com",
+                                            "https://competitor2.com"
+                                        ]
+                                    },
+                                    "keywords": {
+                                        "description": "Optional list of target keywords",
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "digital marketing",
+                                            "SEO services",
+                                            "social media management"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Audit completed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Audit completed successfully"
+                                        },
+                                        "input": {
+                                            "description": "Echo of input parameters",
+                                            "type": "object"
+                                        },
+                                        "audit_results": {
+                                            "properties": {
+                                                "website_audit": {
+                                                    "type": "object"
+                                                },
+                                                "social_media_presence": {
+                                                    "type": "object"
+                                                },
+                                                "google_business_profile": {
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "scores": {
+                                            "properties": {
+                                                "website_score": {
+                                                    "type": "integer",
+                                                    "example": 75
+                                                },
+                                                "social_media_score": {
+                                                    "type": "integer",
+                                                    "example": 60
+                                                },
+                                                "overall_score": {
+                                                    "type": "integer",
+                                                    "example": 68
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "ai_recommendations": {
+                                            "description": "GPT-4 generated recommendations and insights",
+                                            "type": "object"
+                                        },
+                                        "execution_time": {
+                                            "type": "string",
+                                            "example": "15.32 seconds"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Validation failed"
+                                        },
+                                        "errors": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Audit failed"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Audit",
+            "description": "Audit"
+        }
+    ]
+}
