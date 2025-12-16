@@ -398,16 +398,13 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text) wit
       "issues": ["array of issues found"],
       "strengths": ["array of positive findings"]
     },
-    "content_quality": {
-      "score": 0-100,
-      "word_count_estimate": number,
-      "has_meta_title": boolean,
-      "has_meta_description": boolean,
-      "meta_title": "extracted title or null",
+      "content_quality": {
+        "score": 0-100,
+        "has_meta_title": boolean,
+        "has_meta_description": boolean,
+        "meta_title": "extracted title or null",
       "meta_description": "extracted description or null",
-      "heading_structure": "good/fair/poor",
-      "keyword_usage": "good/fair/poor",
-      "content_depth": "comprehensive/adequate/thin",
+      "keyword_usage": "good/fair/poor/unknown",
       "issues": ["array of content issues"],
       "strengths": ["array of content strengths"]
     },
@@ -550,7 +547,9 @@ PROMPT;
     {
         $html = $websiteContent['html_preview'] ?? '';
         $textContent = $html ? strip_tags($html) : '';
-        $wordCount = $textContent ? str_word_count($textContent) : 0;
+        // Temporarily disable word count usage (rendered content may be low/JS-driven)
+        $wordCount = null;
+        $wordCountScoreInput = 0;
 
         $metaTitle = null;
         if ($html && preg_match('/<title[^>]*>([^<]*)<\\/title>/i', $html, $match)) {
@@ -567,7 +566,6 @@ PROMPT;
         $hasH1 = $html ? (bool) preg_match('/<h1[^>]*>/i', $html) : false;
         $hasH2 = $html ? (bool) preg_match('/<h2[^>]*>/i', $html) : false;
         $headingStructure = $hasH1 && $hasH2 ? 'good' : ($hasH1 ? 'fair' : 'poor');
-        $contentDepth = $wordCount > 800 ? 'comprehensive' : ($wordCount > 300 ? 'adequate' : 'thin');
 
         $technicalIssues = [];
         $technicalStrengths = [];
@@ -610,14 +608,8 @@ PROMPT;
             $contentIssues[] = 'Missing meta description';
         }
 
-        if ($wordCount < 300) {
-            $contentIssues[] = 'Low on-page word count';
-        } else {
-            $contentStrengths[] = 'Adequate on-page word count';
-        }
-
         $technicalScore = $this->calculateTechnicalScore($websiteContent);
-        $contentScore = $this->calculateContentScore($wordCount, $hasMetaTitle, $hasMetaDescription, $headingStructure);
+        $contentScore = $this->calculateContentScore($wordCountScoreInput, $hasMetaTitle, $hasMetaDescription, $headingStructure);
         $websiteScore = round(($technicalScore + $contentScore) / 2);
 
         $socialPlatforms = [
@@ -645,14 +637,11 @@ PROMPT;
                 ],
                 'content_quality' => [
                     'score' => $contentScore,
-                    'word_count_estimate' => $wordCount ?: null,
                     'has_meta_title' => $hasMetaTitle,
                     'has_meta_description' => $hasMetaDescription,
                     'meta_title' => $metaTitle,
                     'meta_description' => $metaDescription,
-                    'heading_structure' => $headingStructure,
-                    'keyword_usage' => 'not_checked',
-                    'content_depth' => $contentDepth,
+                    'keyword_usage' => $this->resolveKeywordUsage($textContent, $input['keywords'] ?? []),
                     'issues' => $contentIssues,
                     'strengths' => $contentStrengths,
                 ],
@@ -867,6 +856,34 @@ PROMPT;
         return null;
     }
 
+    private function resolveKeywordUsage(string $text, array $keywords): string
+    {
+        if (empty($keywords)) {
+            return 'unknown';
+        }
+
+        $textLower = strtolower($text);
+        $hits = 0;
+        foreach ($keywords as $kw) {
+            if (! is_string($kw) || $kw === '') {
+                continue;
+            }
+            $kwLower = strtolower($kw);
+            if (str_contains($textLower, $kwLower)) {
+                $hits++;
+            }
+        }
+
+        if ($hits === 0) {
+            return 'poor';
+        }
+        if ($hits <= 2) {
+            return 'fair';
+        }
+
+        return 'good';
+    }
+
     /**
      * Fallback audit when AI is not available
      */
@@ -888,14 +905,11 @@ PROMPT;
                     ],
                     'content_quality' => [
                         'score' => 50,
-                        'word_count_estimate' => null,
                         'has_meta_title' => null,
                         'has_meta_description' => null,
                         'meta_title' => null,
                         'meta_description' => null,
-                        'heading_structure' => 'unknown',
                         'keyword_usage' => 'unknown',
-                        'content_depth' => 'unknown',
                         'issues' => ['AI audit unavailable'],
                         'strengths' => [],
                     ],
