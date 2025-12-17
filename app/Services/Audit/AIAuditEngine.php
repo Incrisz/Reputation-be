@@ -587,13 +587,7 @@ PROMPT;
         $websiteScore = round(($technicalScore + $contentScore) / 2);
         $trustSignals = $this->detectTrustSignals($html, $websiteContent['has_ssl'] ?? null, $input['website_url']);
 
-        $socialPlatforms = [
-            'facebook' => $this->blankPlatformResult(),
-            'instagram' => $this->blankPlatformResult(),
-            'twitter' => $this->blankPlatformResult(),
-            'linkedin' => $this->blankPlatformResult(),
-            'tiktok' => $this->blankPlatformResult(),
-        ];
+        $socialPlatforms = $this->detectSocialProfiles($html, $input);
 
         return [
             'website_audit' => [
@@ -832,6 +826,113 @@ PROMPT;
         return 'good';
     }
 
+    private function detectSocialProfiles(string $html, array $input): array
+    {
+        $defaults = [
+            'facebook' => $this->blankPlatformResult(),
+            'instagram' => $this->blankPlatformResult(),
+            'twitter' => $this->blankPlatformResult(),
+            'linkedin' => $this->blankPlatformResult(),
+            'tiktok' => $this->blankPlatformResult(),
+        ];
+
+        // On-page detection
+        if ($html) {
+            $dom = new \DOMDocument();
+            libxml_use_internal_errors(true);
+            $loaded = $dom->loadHTML($html);
+            libxml_clear_errors();
+            if ($loaded) {
+                $xpath = new \DOMXPath($dom);
+                $links = $xpath->query('//a[@href]');
+
+                foreach ($links as $link) {
+                    $href = $link->getAttribute('href');
+                    if (! $href) {
+                        continue;
+                    }
+
+                    $urlLower = strtolower($href);
+
+                    if (str_contains($urlLower, 'facebook.com')) {
+                        $defaults['facebook'] = [
+                            'present' => true,
+                            'url' => $href,
+                            'linked_from_website' => true,
+                            'found_in_web_search' => false,
+                            'profile_quality_estimate' => 'unknown',
+                        ];
+                    } elseif (str_contains($urlLower, 'instagram.com')) {
+                        $defaults['instagram'] = [
+                            'present' => true,
+                            'url' => $href,
+                            'linked_from_website' => true,
+                            'found_in_web_search' => false,
+                            'profile_quality_estimate' => 'unknown',
+                        ];
+                    } elseif (str_contains($urlLower, 'twitter.com') || str_contains($urlLower, 'x.com')) {
+                        $defaults['twitter'] = [
+                            'present' => true,
+                            'url' => $href,
+                            'linked_from_website' => true,
+                            'found_in_web_search' => false,
+                            'profile_quality_estimate' => 'unknown',
+                        ];
+                    } elseif (str_contains($urlLower, 'linkedin.com')) {
+                        $defaults['linkedin'] = [
+                            'present' => true,
+                            'url' => $href,
+                            'linked_from_website' => true,
+                            'found_in_web_search' => false,
+                            'profile_quality_estimate' => 'unknown',
+                        ];
+                    } elseif (str_contains($urlLower, 'tiktok.com')) {
+                        $defaults['tiktok'] = [
+                            'present' => true,
+                            'url' => $href,
+                            'linked_from_website' => true,
+                            'found_in_web_search' => false,
+                            'profile_quality_estimate' => 'unknown',
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Web search fallback for missing platforms
+        $name = $input['business_name'] ?? '';
+        $city = is_array($input['city'] ?? null) ? implode(' ', $input['city']) : ($input['city'] ?? '');
+        $country = is_array($input['country'] ?? null) ? implode(' ', $input['country']) : ($input['country'] ?? '');
+        $location = trim($city.' '.$country);
+
+        $platformQueries = [
+            'facebook' => $name.' '.$location.' facebook',
+            'instagram' => $name.' '.$location.' instagram',
+            'twitter' => $name.' '.$location.' twitter',
+            'linkedin' => $name.' '.$location.' linkedin',
+            'tiktok' => $name.' '.$location.' tiktok',
+        ];
+
+        foreach ($platformQueries as $platform => $query) {
+            if ($defaults[$platform]['present'] === true) {
+                continue;
+            }
+
+            $foundUrl = $this->searchPlatformOnWeb($platform, $query);
+            if ($foundUrl) {
+                $defaults[$platform] = [
+                    'present' => true,
+                    'url' => $foundUrl,
+                    'linked_from_website' => false,
+                    'found_in_web_search' => true,
+                    'profile_quality_estimate' => 'unknown',
+                ];
+            }
+        }
+
+        return $defaults;
+    }
+
     private function urlExists(string $url): bool
     {
         try {
@@ -851,6 +952,107 @@ PROMPT;
         }
     }
 
+    private function searchPlatformOnWeb(string $platform, string $query): ?string
+    {
+        $endpoint = 'https://html.duckduckgo.com/html/';
+        try {
+            $response = $this->httpClient->get($endpoint, [
+                'query' => ['q' => $query],
+                'headers' => [
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                ],
+                'timeout' => 15,
+            ]);
+
+            $html = (string) $response->getBody();
+            $pattern = '';
+            switch ($platform) {
+                case 'facebook':
+                    $pattern = '#https?://(www\.)?facebook\.com/[^"\s<]+#i';
+                    break;
+                case 'instagram':
+                    $pattern = '#https?://(www\.)?instagram\.com/[^"\s<]+#i';
+                    break;
+                case 'twitter':
+                    $pattern = '#https?://(www\.)?(twitter\.com|x\.com)/[^"\s<]+#i';
+                    break;
+                case 'linkedin':
+                    $pattern = '#https?://(www\.)?linkedin\.com/[^"\s<]+#i';
+                    break;
+                case 'tiktok':
+                    $pattern = '#https?://(www\.)?tiktok\.com/[^"\s<]+#i';
+                    break;
+                default:
+                    return null;
+            }
+
+            if ($pattern && preg_match($pattern, $html, $match)) {
+                return $match[0];
+            }
+        } catch (GuzzleException) {
+            return null;
+        }
+
+        return null;
+    }
+
+    private function extractLinkByKeyword(string $html, array $keywords): ?string
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $loaded = $dom->loadHTML($html);
+        libxml_clear_errors();
+        if (! $loaded) {
+            return null;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $links = $xpath->query('//a[@href]');
+        foreach ($links as $link) {
+            $href = $link->getAttribute('href');
+            if (! $href) {
+                continue;
+            }
+            $text = strtolower(trim($link->textContent));
+            $hrefLower = strtolower($href);
+            foreach ($keywords as $kw) {
+                $kwLower = strtolower($kw);
+                if (str_contains($text, $kwLower) || str_contains($hrefLower, $kwLower)) {
+                    return $href;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveRelativeUrl(string $baseUrl, string $href): ?string
+    {
+        if (str_starts_with($href, 'http://') || str_starts_with($href, 'https://')) {
+            return $href;
+        }
+
+        if (str_starts_with($href, '//')) {
+            $scheme = parse_url($baseUrl, PHP_URL_SCHEME) ?: 'https';
+            return $scheme.':'.$href;
+        }
+
+        if (str_starts_with($href, '/')) {
+            $baseParts = parse_url($baseUrl);
+            if (! $baseParts || ! isset($baseParts['scheme'], $baseParts['host'])) {
+                return null;
+            }
+            return $baseParts['scheme'].'://'.$baseParts['host'].$href;
+        }
+
+        $baseParts = parse_url($baseUrl);
+        if (! $baseParts || ! isset($baseParts['scheme'], $baseParts['host'])) {
+            return null;
+        }
+        $path = isset($baseParts['path']) ? rtrim(dirname($baseParts['path']), '/') : '';
+        return $baseParts['scheme'].'://'.$baseParts['host'].$path.'/'.$href;
+    }
+
     private function detectTrustSignals(string $html, ?bool $hasSsl, string $baseUrl): array
     {
         if (! $html) {
@@ -868,6 +1070,9 @@ PROMPT;
 
         $privacy = (bool) preg_match('/privacy\s*(policy|notice|statement)/i', $html);
         $terms = (bool) preg_match('/terms\s*(of\s*service|conditions|use)/i', $html);
+        if (! $terms && preg_match('/terms/i', $html)) {
+            $terms = true;
+        }
         $baseUrl = rtrim($baseUrl, '/');
 
         if (! $privacy) {
@@ -889,15 +1094,32 @@ PROMPT;
             $termsCandidates = [
                 $baseUrl.'/terms',
                 $baseUrl.'/terms-of-service',
+                $baseUrl.'/terms-of-use',
                 $baseUrl.'/terms-and-conditions',
+                $baseUrl.'/terms-conditions',
+                $baseUrl.'/legal/terms',
+                $baseUrl.'/legal',
                 $baseUrl.'/terms.html',
                 $baseUrl.'/terms-of-service.html',
+                $baseUrl.'/terms-of-use.html',
                 $baseUrl.'/terms-and-conditions.html',
+                $baseUrl.'/terms-conditions.html',
             ];
             foreach ($termsCandidates as $candidate) {
                 if ($this->urlExists($candidate)) {
                     $terms = true;
                     break;
+                }
+            }
+        }
+
+        if (! $terms) {
+            // Try to discover a terms link in the HTML and follow it
+            $termLink = $this->extractLinkByKeyword($html, ['terms', 'terms-of-service', 'terms-and-conditions']);
+            if ($termLink) {
+                $resolved = $this->resolveRelativeUrl($baseUrl, $termLink);
+                if ($resolved && $this->urlExists($resolved)) {
+                    $terms = true;
                 }
             }
         }
