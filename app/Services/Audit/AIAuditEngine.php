@@ -408,15 +408,6 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text) wit
       "issues": ["array of content issues"],
       "strengths": ["array of content strengths"]
     },
-    "local_seo": {
-      "score": 0-100,
-      "nap_found": boolean,
-      "location_mentioned": boolean,
-      "local_keywords_used": boolean,
-      "schema_markup_present": boolean,
-      "issues": ["array of local SEO issues"],
-      "recommendations": ["array of local SEO improvements"]
-    },
     "security_trust": {
       "score": 0-100,
       "ssl_certificate": boolean,
@@ -644,15 +635,6 @@ PROMPT;
                     'keyword_usage' => $this->resolveKeywordUsage($textContent, $input['keywords'] ?? []),
                     'issues' => $contentIssues,
                     'strengths' => $contentStrengths,
-                ],
-                'local_seo' => [
-                    'score' => null,
-                    'nap_found' => null,
-                    'location_mentioned' => null,
-                    'local_keywords_used' => null,
-                    'schema_markup_present' => null,
-                    'issues' => ['Local SEO not evaluated in manual fetch-only mode'],
-                    'recommendations' => ['Enable social and GBP checks to evaluate local SEO signals'],
                 ],
                 'security_trust' => [
                     'score' => null,
@@ -912,15 +894,6 @@ PROMPT;
                         'keyword_usage' => 'unknown',
                         'issues' => ['AI audit unavailable'],
                         'strengths' => [],
-                    ],
-                    'local_seo' => [
-                        'score' => 50,
-                        'nap_found' => null,
-                        'location_mentioned' => null,
-                        'local_keywords_used' => null,
-                        'schema_markup_present' => null,
-                        'issues' => ['AI audit unavailable'],
-                        'recommendations' => ['Configure OpenAI API key for detailed analysis'],
                     ],
                     'security_trust' => [
                         'score' => 50,
