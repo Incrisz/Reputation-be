@@ -408,32 +408,14 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text) wit
       "issues": ["array of content issues"],
       "strengths": ["array of content strengths"]
     },
-    "security_trust": {
-      "score": 0-100,
-      "ssl_certificate": boolean,
-      "privacy_policy_found": boolean,
-      "terms_conditions_found": boolean,
-      "trust_badges": boolean,
-      "contact_info_visible": boolean,
-      "issues": ["array of security/trust issues"]
-    },
-    "ux_accessibility": {
-      "score": 0-100,
-      "mobile_responsive": boolean,
-      "navigation_clear": boolean,
-      "load_time_estimate": "fast/medium/slow",
-      "readability": "good/fair/poor",
-      "cta_present": boolean,
-      "issues": ["array of UX issues"],
-      "strengths": ["array of UX strengths"]
-    },
-    "brand_consistency": {
-      "score": 0-100,
-      "business_name_prominent": boolean,
-      "consistent_messaging": boolean,
-      "professional_design": boolean,
-      "brand_colors_defined": boolean
-    }
+  "security_trust": {
+    "score": 0-100,
+    "ssl_certificate": boolean,
+    "privacy_policy_found": boolean,
+    "terms_conditions_found": boolean,
+    "contact_info_visible": boolean,
+    "issues": ["array of security/trust issues"]
+  },
   },
   "social_media_presence": {
     "platforms_detected": {
@@ -600,8 +582,10 @@ PROMPT;
         }
 
         $technicalScore = $this->calculateTechnicalScore($websiteContent);
-        $contentScore = $this->calculateContentScore($wordCountScoreInput, $hasMetaTitle, $hasMetaDescription, $headingStructure);
+        $keywordUsage = $this->resolveKeywordUsage($textContent, $input['keywords'] ?? []);
+        $contentScore = $this->calculateContentScore($hasMetaTitle, $hasMetaDescription, $headingStructure, $keywordUsage);
         $websiteScore = round(($technicalScore + $contentScore) / 2);
+        $trustSignals = $this->detectTrustSignals($html, $websiteContent['has_ssl'] ?? null, $input['website_url']);
 
         $socialPlatforms = [
             'facebook' => $this->blankPlatformResult(),
@@ -632,35 +616,17 @@ PROMPT;
                     'has_meta_description' => $hasMetaDescription,
                     'meta_title' => $metaTitle,
                     'meta_description' => $metaDescription,
-                    'keyword_usage' => $this->resolveKeywordUsage($textContent, $input['keywords'] ?? []),
+                    'keyword_usage' => $keywordUsage,
                     'issues' => $contentIssues,
                     'strengths' => $contentStrengths,
                 ],
                 'security_trust' => [
-                    'score' => null,
+                    'score' => $trustSignals['score'],
                     'ssl_certificate' => $websiteContent['has_ssl'] ?? null,
-                    'privacy_policy_found' => $html ? (bool) preg_match('/privacy[\s-]?policy/i', $html) : null,
-                    'terms_conditions_found' => $html ? (bool) preg_match('/terms[\s&-]?conditions|terms[\s-]?of[\s-]?service/i', $html) : null,
-                    'trust_badges' => null,
-                    'contact_info_visible' => $html ? (bool) preg_match('/\+?\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}/', $html) : null,
-                    'issues' => ['Trust signals not fully evaluated in manual fetch-only mode'],
-                ],
-                'ux_accessibility' => [
-                    'score' => null,
-                    'mobile_responsive' => $html ? (bool) preg_match('/<meta[^>]+name=["\']viewport["\']/i', $html) : null,
-                    'navigation_clear' => null,
-                    'load_time_estimate' => 'unknown',
-                    'readability' => 'unknown',
-                    'cta_present' => null,
-                    'issues' => ['UX not fully evaluated in manual fetch-only mode'],
-                    'strengths' => [],
-                ],
-                'brand_consistency' => [
-                    'score' => null,
-                    'business_name_prominent' => $html ? (bool) preg_match('/'.preg_quote($input['business_name'], '/').'/i', $html) : null,
-                    'consistent_messaging' => null,
-                    'professional_design' => null,
-                    'brand_colors_defined' => null,
+                    'privacy_policy_found' => $trustSignals['privacy_policy_found'],
+                    'terms_conditions_found' => $trustSignals['terms_conditions_found'],
+                    'contact_info_visible' => $trustSignals['contact_info_visible'],
+                    'issues' => $trustSignals['issues'],
                 ],
             ],
             'social_media_presence' => [
@@ -744,32 +710,32 @@ PROMPT;
         return min($score, 100);
     }
 
-    private function calculateContentScore(int $wordCount, bool $hasMetaTitle, bool $hasMetaDescription, string $headingStructure): int
+    private function calculateContentScore(bool $hasMetaTitle, bool $hasMetaDescription, string $headingStructure, string $keywordUsage): int
     {
         $score = 0;
 
-        if ($wordCount > 800) {
-            $score += 40;
-        } elseif ($wordCount > 300) {
-            $score += 30;
-        } elseif ($wordCount > 100) {
-            $score += 20;
-        } elseif ($wordCount > 0) {
-            $score += 10;
-        }
-
         if ($hasMetaTitle) {
-            $score += 20;
+            $score += 25;
         }
 
         if ($hasMetaDescription) {
-            $score += 20;
+            $score += 25;
         }
 
         if ($headingStructure === 'good') {
             $score += 20;
         } elseif ($headingStructure === 'fair') {
             $score += 10;
+        }
+
+        if ($keywordUsage === 'good') {
+            $score += 30;
+        } elseif ($keywordUsage === 'fair') {
+            $score += 15;
+        } elseif ($keywordUsage === 'poor') {
+            $score += 0;
+        } else { // unknown
+            $score += 0;
         }
 
         return min($score, 100);
@@ -866,6 +832,114 @@ PROMPT;
         return 'good';
     }
 
+    private function urlExists(string $url): bool
+    {
+        try {
+            $response = $this->httpClient->head($url, ['timeout' => 8]);
+            if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 400) {
+                return true;
+            }
+        } catch (GuzzleException) {
+            // try GET as fallback
+        }
+
+        try {
+            $response = $this->httpClient->get($url, ['timeout' => 8]);
+            return $response->getStatusCode() >= 200 && $response->getStatusCode() < 400;
+        } catch (GuzzleException) {
+            return false;
+        }
+    }
+
+    private function detectTrustSignals(string $html, ?bool $hasSsl, string $baseUrl): array
+    {
+        if (! $html) {
+            return [
+                'score' => null,
+                'privacy_policy_found' => null,
+                'terms_conditions_found' => null,
+                'trust_badges' => null,
+                'contact_info_visible' => null,
+                'issues' => ['Trust signals not fully evaluated in manual fetch-only mode'],
+            ];
+        }
+
+        $lower = strtolower($html);
+
+        $privacy = (bool) preg_match('/privacy\s*(policy|notice|statement)/i', $html);
+        $terms = (bool) preg_match('/terms\s*(of\s*service|conditions|use)/i', $html);
+        $baseUrl = rtrim($baseUrl, '/');
+
+        if (! $privacy) {
+            $privacyCandidates = [
+                $baseUrl.'/privacy',
+                $baseUrl.'/privacy-policy',
+                $baseUrl.'/privacy.html',
+                $baseUrl.'/privacy-policy.html',
+            ];
+            foreach ($privacyCandidates as $candidate) {
+                if ($this->urlExists($candidate)) {
+                    $privacy = true;
+                    break;
+                }
+            }
+        }
+
+        if (! $terms) {
+            $termsCandidates = [
+                $baseUrl.'/terms',
+                $baseUrl.'/terms-of-service',
+                $baseUrl.'/terms-and-conditions',
+                $baseUrl.'/terms.html',
+                $baseUrl.'/terms-of-service.html',
+                $baseUrl.'/terms-and-conditions.html',
+            ];
+            foreach ($termsCandidates as $candidate) {
+                if ($this->urlExists($candidate)) {
+                    $terms = true;
+                    break;
+                }
+            }
+        }
+
+        $contactPhone = (bool) preg_match('/\+?\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}/', $html);
+        $contactEmail = (bool) preg_match('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', $html);
+        $contactInfo = $contactPhone || $contactEmail;
+
+        $score = 0;
+        $score += ($hasSsl ?? false) ? 25 : 0;
+        $score += $privacy ? 25 : 0;
+        $score += $terms ? 25 : 0;
+        $score += $contactInfo ? 25 : 0;
+        $score = $score > 0 ? $score : null;
+
+        $issues = [];
+        if (! ($hasSsl ?? false)) {
+            $issues[] = 'SSL not detected';
+        }
+        if (! $privacy) {
+            $issues[] = 'Privacy policy not detected in HTML';
+        }
+        if (! $terms) {
+            $issues[] = 'Terms & conditions not detected in HTML';
+        }
+        if (! $contactInfo) {
+            $issues[] = 'Contact info (email/phone) not detected in HTML';
+        }
+
+        if (empty($issues)) {
+            $issues = [];
+        }
+
+        return [
+            'score' => $score,
+            'privacy_policy_found' => $privacy,
+            'terms_conditions_found' => $terms,
+            'contact_info_visible' => $contactInfo,
+            'issues' => $issues,
+        ];
+    }
+
     /**
      * Fallback audit when AI is not available
      */
@@ -903,23 +977,6 @@ PROMPT;
                         'trust_badges' => null,
                         'contact_info_visible' => null,
                         'issues' => ['AI audit unavailable'],
-                    ],
-                    'ux_accessibility' => [
-                        'score' => 50,
-                        'mobile_responsive' => null,
-                        'navigation_clear' => null,
-                        'load_time_estimate' => 'unknown',
-                        'readability' => 'unknown',
-                        'cta_present' => null,
-                        'issues' => ['AI audit unavailable'],
-                        'strengths' => [],
-                    ],
-                    'brand_consistency' => [
-                        'score' => 50,
-                        'business_name_prominent' => null,
-                        'consistent_messaging' => null,
-                        'professional_design' => null,
-                        'brand_colors_defined' => null,
                     ],
                 ],
                 'social_media_presence' => [
