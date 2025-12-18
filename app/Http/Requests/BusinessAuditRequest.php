@@ -30,6 +30,7 @@ class BusinessAuditRequest extends FormRequest
             'city' => ['required'], // Can be string or array
             'city.*' => ['string', 'max:100'], // Validation for array items
             'target_audience' => ['required', 'string', 'max:500'],
+            'description' => ['nullable', 'string', 'max:2000'],
             'competitors' => ['nullable', 'array'],
             'competitors.*' => ['string', 'max:500'],
             'keywords' => ['nullable', 'array'],

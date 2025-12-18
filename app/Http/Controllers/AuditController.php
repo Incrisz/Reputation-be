@@ -83,6 +83,13 @@ class AuditController extends Controller
                         description: 'Description of target customer base (required)'
                     ),
                     new OA\Property(
+                        property: 'description',
+                        type: 'string',
+                        nullable: true,
+                        example: 'We are a branding-first technology studio focused on Abuja startups.',
+                        description: 'Optional description/tell-us-about-your-business text used to validate search matches'
+                    ),
+                    new OA\Property(
                         property: 'competitors',
                         type: 'array',
                         items: new OA\Items(type: 'string'),

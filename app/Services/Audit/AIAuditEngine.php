@@ -382,67 +382,63 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text) wit
   },
   },
   "social_media_presence": {
-    "platforms_detected": {
+    "business_name": "string",
+    "website": "string",
+    "platforms": {
       "facebook": {
-        "present": boolean (ONLY TRUE if found in WEB SEARCH RESULTS, not just website links),
-        "url": "extracted URL from search results or null",
-        "linked_from_website": boolean,
-        "found_in_web_search": boolean,
-        "profile_quality_estimate": "high/medium/low/unknown"
+        "url": "resolved URL or null/NOT FOUND",
+        "source": "website/search/none",
+        "confidence": "HIGH/LOW/NONE"
       },
       "instagram": {
-        "present": boolean (ONLY TRUE if found in WEB SEARCH RESULTS, not just website links),
-        "url": "extracted URL from search results or null",
-        "linked_from_website": boolean,
-        "found_in_web_search": boolean,
-        "profile_quality_estimate": "high/medium/low/unknown"
+        "url": "resolved URL or null/NOT FOUND",
+        "source": "website/search/none",
+        "confidence": "HIGH/LOW/NONE"
       },
       "twitter": {
-        "present": boolean (ONLY TRUE if found in WEB SEARCH RESULTS, not just website links),
-        "url": "extracted URL from search results or null",
-        "linked_from_website": boolean,
-        "found_in_web_search": boolean,
-        "profile_quality_estimate": "high/medium/low/unknown"
+        "url": "resolved URL or null/NOT FOUND",
+        "source": "website/search/none",
+        "confidence": "HIGH/LOW/NONE"
       },
       "linkedin": {
-        "present": boolean (ONLY TRUE if found in WEB SEARCH RESULTS, not just website links),
-        "url": "extracted URL from search results or null",
-        "linked_from_website": boolean,
-        "found_in_web_search": boolean,
-        "profile_quality_estimate": "high/medium/low/unknown"
+        "url": "resolved URL or null/NOT FOUND",
+        "source": "website/search/none",
+        "confidence": "HIGH/LOW/NONE"
+      },
+      "youtube": {
+        "url": "resolved URL or null/NOT FOUND",
+        "source": "website/search/none",
+        "confidence": "HIGH/LOW/NONE"
       },
       "tiktok": {
-        "present": boolean (ONLY TRUE if found in WEB SEARCH RESULTS, not just website links),
-        "url": "extracted URL from search results or null",
-        "linked_from_website": boolean,
-        "found_in_web_search": boolean,
-        "profile_quality_estimate": "high/medium/low/unknown"
+        "url": "resolved URL or null/NOT FOUND",
+        "source": "website/search/none",
+        "confidence": "HIGH/LOW/NONE"
       }
     },
     "social_score": 0-100,
-    "total_platforms": number (count ONLY platforms where found_in_web_search is true),
+    "total_platforms": number,
     "integration_quality": "excellent/good/fair/poor",
     "recommendations": ["array of social media recommendations"]
   },
   "google_business_profile": {
-    "likely_has_profile": boolean,
-    "confidence_level": "high/medium/low",
-    "profile_completeness_estimate": 0-100,
-    "signals": {
-      "business_type_suitable": boolean,
-      "location_specific": boolean,
-      "contact_info_available": boolean,
-      "reviews_mentioned": boolean
-    },
-    "recommendations": ["array of GBP recommendations"]
+    "found": "YES/NO/UNKNOWN",
+    "name": "string or N/A",
+    "address": "string or N/A",
+    "phone": "string or N/A",
+    "rating": number or "N/A",
+    "reviews": number or "N/A",
+    "confidence": "very_high/high/medium/low",
+    "score": 0-100
   },
   "visibility_scores": {
-    "website_score": 0-100,
-    "social_media_score": 0-100,
-    "local_presence_score": 0-100,
+    "website_audit": 0-100,
+    "content_quality": 0-100,
+    "social_media_presence": 0-100,
+    "google_business_profile": 0-100,
     "overall_visibility_score": 0-100,
-    "grade": "A+/A/B/C/D/F",
-    "grade_description": "Excellent/Good/Above Average/Average/Below Average/Poor"
+    "grade": "A/B/C/D/E/F",
+    "grade_description": "Narrative explaining the overall grade"
   },
   "key_findings": {
     "strengths": ["top 3-5 strengths"],
@@ -548,7 +544,6 @@ PROMPT;
         $technicalScore = $this->calculateTechnicalScore($websiteContent);
         $keywordUsage = $this->resolveKeywordUsage($textContent, $input['keywords'] ?? []);
         $contentScore = $this->calculateContentScore($hasMetaTitle, $hasMetaDescription, $headingStructure, $keywordUsage);
-        $websiteScore = round(($technicalScore + $contentScore) / 2);
         $trustSignals = $this->detectTrustSignals($html, $websiteContent['has_ssl'] ?? null, $input['website_url']);
 
         $socialPlatforms = $this->detectSocialProfiles($html, $input);
@@ -558,12 +553,16 @@ PROMPT;
         $totalPlatforms = $this->countDetectedPlatforms($socialPlatforms);
 
         $googleBusinessProfile = $this->detectGoogleBusinessProfile($input);
-        $localPresenceScore = $this->calculateLocalPresenceScore($googleBusinessProfile);
-        $overallVisibilityScore = $this->calculateOverallVisibilityScore(array_filter([
-            $websiteScore,
-            $socialScore,
-            $localPresenceScore,
-        ], static fn ($score) => $score !== null));
+        $googleBusinessScore = $this->calculateLocalPresenceScore($googleBusinessProfile);
+        $googleBusinessProfile['score'] = $googleBusinessScore;
+
+        $overallVisibilityScore = $this->calculateOverallGradeScore([
+            $technicalScore,
+            $contentScore,
+            $socialScore ?? 0,
+            $googleBusinessScore ?? 0,
+        ]);
+        $grade = $this->resolveLetterGrade($overallVisibilityScore);
 
         return [
             'website_audit' => [
@@ -610,12 +609,13 @@ PROMPT;
             ],
             'google_business_profile' => $googleBusinessProfile,
             'visibility_scores' => [
-                'website_score' => $websiteScore,
-                'social_media_score' => $socialScore,
-                'local_presence_score' => $localPresenceScore,
-                'overall_visibility_score' => $overallVisibilityScore ?? $websiteScore,
-                'grade' => 'N/A',
-                'grade_description' => 'Manual audit with SERPER social discovery and Google Places lookup',
+                'website_audit' => $technicalScore,
+                'content_quality' => $contentScore,
+                'social_media_presence' => $socialScore ?? 0,
+                'google_business_profile' => $googleBusinessScore ?? 0,
+                'overall_visibility_score' => $overallVisibilityScore,
+                'grade' => $grade,
+                'grade_description' => $this->describeGrade($grade),
             ],
             'key_findings' => [
                 'strengths' => array_slice(array_merge($technicalStrengths, $contentStrengths), 0, 5),
@@ -786,7 +786,7 @@ PROMPT;
     {
         $results = [];
         $websiteSocials = $this->extractSocialLinksFromHtml($html);
-        $tokens = $this->normalizeBusinessTokens($input['business_name'] ?? '');
+        $tokens = $this->buildSearchTokens($input);
 
         foreach ($this->socialPlatforms as $platform => $domain) {
             if (! empty($websiteSocials[$platform])) {
@@ -853,18 +853,50 @@ PROMPT;
         return $found;
     }
     
-    private function normalizeBusinessTokens(string $name): array
+    private function buildSearchTokens(array $input): array
     {
-        $name = strtolower($name);
-        $name = preg_replace('/\b(ltd|limited|inc|llc|company)\b/', '', $name);
-        $name = preg_replace('/[^a-z0-9 ]/', '', $name);
-        $name = trim(preg_replace('/\s+/', ' ', $name));
+        $tokens = [];
+        $sources = [];
 
-        if ($name === '') {
+        if (! empty($input['business_name']) && is_string($input['business_name'])) {
+            $sources[] = $input['business_name'];
+        }
+
+        if (! empty($input['description']) && is_string($input['description'])) {
+            $sources[] = $input['description'];
+        }
+
+        if (! empty($input['city'])) {
+            $sources[] = is_array($input['city']) ? implode(' ', array_filter($input['city'])) : (string) $input['city'];
+        }
+
+        if (! empty($input['country'])) {
+            $sources[] = is_array($input['country']) ? implode(' ', array_filter($input['country'])) : (string) $input['country'];
+        }
+
+        if (! empty($input['keywords']) && is_array($input['keywords'])) {
+            $sources[] = implode(' ', array_filter($input['keywords'], static fn ($kw) => is_string($kw)));
+        }
+
+        foreach ($sources as $text) {
+            $tokens = array_merge($tokens, $this->tokenizeText($text));
+        }
+
+        return array_values(array_unique(array_filter($tokens)));
+    }
+
+    private function tokenizeText(string $text): array
+    {
+        $text = strtolower($text);
+        $text = preg_replace('/\b(ltd|limited|inc|llc|company)\b/', ' ', $text);
+        $text = preg_replace('/[^a-z0-9 ]/', ' ', $text);
+        $text = trim(preg_replace('/\s+/', ' ', $text));
+
+        if ($text === '') {
             return [];
         }
 
-        $parts = explode(' ', $name);
+        $parts = explode(' ', $text);
         $tokens = [];
 
         foreach ($parts as $part) {
@@ -877,7 +909,7 @@ PROMPT;
             $tokens[] = implode('', $parts);
         }
 
-        return array_unique($tokens);
+        return $tokens;
     }
 
     private function buildSerperQuery(string $businessName, string $platform, string $domain): string
@@ -1120,7 +1152,7 @@ PROMPT;
 
         $details = $detailsData['result'] ?? [];
 
-        return [
+        $profile = [
             'found' => 'YES',
             'name' => $details['name'] ?? $place['name'] ?? $business,
             'address' => $details['formatted_address'] ?? $place['formatted_address'] ?? 'N/A',
@@ -1129,6 +1161,13 @@ PROMPT;
             'reviews' => $details['user_ratings_total'] ?? 'N/A',
             'confidence' => 'very_high',
         ];
+
+        $tokens = $this->buildSearchTokens($input);
+        if (! $this->gbpMatchesTokens($profile, $tokens)) {
+            return $this->gbpNotFound('GBP candidate failed keyword verification');
+        }
+
+        return $profile;
     }
 
     private function buildLocationQuery(array $input): string
@@ -1157,6 +1196,26 @@ PROMPT;
             'reviews' => 'N/A',
             'confidence' => 'low',
         ];
+    }
+
+    private function gbpMatchesTokens(array $profile, array $tokens): bool
+    {
+        if (empty($tokens)) {
+            return true;
+        }
+
+        $haystack = strtolower(($profile['name'] ?? '').' '.($profile['address'] ?? ''));
+        if ($haystack === '') {
+            return false;
+        }
+
+        foreach ($tokens as $token) {
+            if ($token !== '' && str_contains($haystack, $token)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function calculateLocalPresenceScore(array $gbp): ?int
@@ -1283,18 +1342,45 @@ PROMPT;
         return array_values(array_unique($recommendations));
     }
 
-    private function calculateOverallVisibilityScore(array $scores): ?int
+    private function calculateOverallGradeScore(array $scores): int
     {
         if (empty($scores)) {
-            return null;
+            return 0;
         }
 
-        $numericScores = array_filter($scores, static fn ($score) => is_numeric($score));
-        if (empty($numericScores)) {
-            return null;
-        }
+        $normalized = array_map(static function ($score) {
+            if ($score === null) {
+                return 0;
+            }
 
-        return (int) round(array_sum($numericScores) / count($numericScores));
+            return max(0, min(100, (int) round($score)));
+        }, $scores);
+
+        return (int) round(array_sum($normalized) / count($normalized));
+    }
+
+    private function resolveLetterGrade(int $score): string
+    {
+        return match (true) {
+            $score >= 90 => 'A',
+            $score >= 80 => 'B',
+            $score >= 70 => 'C',
+            $score >= 60 => 'D',
+            $score >= 50 => 'E',
+            default => 'F',
+        };
+    }
+
+    private function describeGrade(string $grade): string
+    {
+        return match ($grade) {
+            'A' => 'Excellent visibility across all pillars',
+            'B' => 'Strong visibility with minor gaps',
+            'C' => 'Average visibility with room to grow',
+            'D' => 'Below-average visibility; needs attention',
+            'E' => 'Weak visibility across channels',
+            default => 'Critical visibility gaps detected',
+        };
     }
 
     private function urlExists(string $url): bool
@@ -1522,12 +1608,15 @@ PROMPT;
                     ],
                 ],
                 'social_media_presence' => [
-                    'platforms_detected' => [
-                        'facebook' => ['present' => null, 'url' => null, 'linked_from_website' => false, 'profile_quality_estimate' => 'unknown'],
-                        'instagram' => ['present' => null, 'url' => null, 'linked_from_website' => false, 'profile_quality_estimate' => 'unknown'],
-                        'twitter' => ['present' => null, 'url' => null, 'linked_from_website' => false, 'profile_quality_estimate' => 'unknown'],
-                        'linkedin' => ['present' => null, 'url' => null, 'linked_from_website' => false, 'profile_quality_estimate' => 'unknown'],
-                        'tiktok' => ['present' => null, 'url' => null, 'linked_from_website' => false, 'profile_quality_estimate' => 'unknown'],
+                    'business_name' => $input['business_name'],
+                    'website' => $input['website_url'],
+                    'platforms' => [
+                        'facebook' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
+                        'instagram' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
+                        'twitter' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
+                        'linkedin' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
+                        'youtube' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
+                        'tiktok' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
                     ],
                     'social_score' => 50,
                     'total_platforms' => 0,
@@ -1535,24 +1624,23 @@ PROMPT;
                     'recommendations' => ['Configure OpenAI API key for social media analysis'],
                 ],
                 'google_business_profile' => [
-                    'likely_has_profile' => null,
-                    'confidence_level' => 'unknown',
-                    'profile_completeness_estimate' => 50,
-                    'signals' => [
-                        'business_type_suitable' => null,
-                        'location_specific' => true,
-                        'contact_info_available' => null,
-                        'reviews_mentioned' => null,
-                    ],
-                    'recommendations' => ['Configure OpenAI API key for GBP analysis'],
+                    'found' => 'UNKNOWN',
+                    'name' => null,
+                    'address' => null,
+                    'phone' => null,
+                    'rating' => 'N/A',
+                    'reviews' => 'N/A',
+                    'confidence' => 'low',
+                    'score' => 50,
                 ],
                 'visibility_scores' => [
-                    'website_score' => 50,
-                    'social_media_score' => 50,
-                    'local_presence_score' => 50,
+                    'website_audit' => 50,
+                    'content_quality' => 50,
+                    'social_media_presence' => 50,
+                    'google_business_profile' => 50,
                     'overall_visibility_score' => 50,
-                    'grade' => 'D',
-                    'grade_description' => 'Below Average - AI audit unavailable',
+                    'grade' => 'E',
+                    'grade_description' => $this->describeGrade('E'),
                 ],
                 'key_findings' => [
                     'strengths' => [],

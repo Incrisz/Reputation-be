@@ -2,10 +2,11 @@
   "website_url": "https://www.apple.com",
   "business_name": "Apple Inc",
   "industry": "Technology",
-  "country": "United States",
+  "country": ["United States"],
   "city": ["Abuja", "Lagos", "Port Harcourt"],
   "target_audience": "Consumers and professionals seeking premium technology products",
-  "keywords": ["iPhone", "MacBook", "consumer electronics"]
+  "description": "Global consumer electronics company creating premium devices, software, and services.",
+  "keywords": ["iPhone", "MacBook", "consumer electronics", "Apple Store"]
 }
 
 
@@ -16,5 +17,18 @@
   "country": ["Nigeria", "uk"],
   "city": "abuja",
   "target_audience": "Consumers and professionals seeking premium technology services",
-  "keywords": ["branding", "web-development", "marketing"]
+  "description": "Branding-first technology studio serving Abuja businesses with marketing, design, and web development.",
+  "keywords": ["branding", "web-development", "marketing", "Abuja tech"]
+}
+
+
+{
+  "website_url": "https://dev.unicornglobalscholars.com",
+  "business_name": "Unicorn Global Scholars Ltd",
+  "industry": "Teaching",
+  "country": ["Nigeria"],
+  "city": "abuja",
+  "target_audience": "Consumers and professionals seeking premium technology services",
+  "description": "Unicorn Global Scholars Ltd. is a premium online educational institution dedicated to nurturing academic excellence and moral integrity in learners across the world",
+  "keywords": ["training", "teaching", "learning"]
 }
