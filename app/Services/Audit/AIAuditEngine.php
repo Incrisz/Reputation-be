@@ -228,61 +228,6 @@ class AIAuditEngine
     }
 
     /**
-     * Search for Google Business Profile on the web
-     */
-    private function searchGoogleBusiness(array $input): array
-    {
-        $businessName = $input['business_name'];
-        $cities = is_array($input['city']) ? implode(' ', $input['city']) : $input['city'];
-        $countries = is_array($input['country']) ? implode(' ', $input['country']) : $input['country'];
-        $location = trim($cities.' '.$countries);
-
-        $searchQueries = [
-            'google_maps' => $businessName.' '.$location.' google maps',
-            'google_business' => $businessName.' '.$location.' google business profile',
-            'reviews' => $businessName.' '.$location.' reviews google',
-        ];
-
-        $searchResults = [];
-
-        foreach ($searchQueries as $queryType => $query) {
-            try {
-                $duckDuckGoUrl = 'https://html.duckduckgo.com/html/?q='.urlencode($query);
-
-                $response = $this->httpClient->get($duckDuckGoUrl, [
-                    'timeout' => 10,
-                    'allow_redirects' => true,
-                ]);
-
-                $html = (string) $response->getBody();
-
-                // Check for Google Maps/Business indicators
-                $hasGoogleMapsLink = stripos($html, 'google.com/maps') !== false || stripos($html, 'maps.google.com') !== false;
-                $hasBusinessLink = stripos($html, 'business.google.com') !== false;
-                $hasReviews = stripos($html, 'reviews') !== false && stripos($html, 'google') !== false;
-
-                $searchResults[$queryType] = [
-                    'search_performed' => true,
-                    'search_query' => $query,
-                    'has_google_maps_link' => $hasGoogleMapsLink,
-                    'has_business_link' => $hasBusinessLink,
-                    'has_reviews_mention' => $hasReviews,
-                    'results_html_preview' => substr($html, 0, 2000),
-                ];
-
-            } catch (GuzzleException $e) {
-                $searchResults[$queryType] = [
-                    'search_performed' => false,
-                    'error' => 'Search failed: '.$e->getMessage(),
-                    'search_query' => $query,
-                ];
-            }
-        }
-
-        return $searchResults;
-    }
-
-    /**
      * Format social media search results for the prompt
      */
     private function formatSocialMediaSearchResults(array $searchResults): string
@@ -588,6 +533,20 @@ PROMPT;
         $trustSignals = $this->detectTrustSignals($html, $websiteContent['has_ssl'] ?? null, $input['website_url']);
 
         $socialPlatforms = $this->detectSocialProfiles($html, $input);
+        $socialScore = $this->calculateSocialScore($socialPlatforms);
+        $socialIntegrationQuality = $this->determineIntegrationQuality($socialPlatforms);
+        $socialRecommendations = $this->buildSocialRecommendations($socialPlatforms);
+        $totalPlatforms = array_reduce($socialPlatforms, static function ($carry, $platform) {
+            return $carry + ((($platform['found_in_web_search'] ?? false) === true) ? 1 : 0);
+        }, 0);
+
+        $googleBusinessProfile = $this->detectGoogleBusinessProfile($input);
+        $localPresenceScore = $googleBusinessProfile['profile_completeness_estimate'];
+        $overallVisibilityScore = $this->calculateOverallVisibilityScore(array_filter([
+            $websiteScore,
+            $socialScore,
+            $localPresenceScore,
+        ], static fn ($score) => $score !== null));
 
         return [
             'website_audit' => [
@@ -625,35 +584,24 @@ PROMPT;
             ],
             'social_media_presence' => [
                 'platforms_detected' => $socialPlatforms,
-                'social_score' => null,
-                'total_platforms' => 0,
-                'integration_quality' => 'not_checked',
-                'recommendations' => ['Social media detection skipped; enable checks after manual review'],
+                'social_score' => $socialScore,
+                'total_platforms' => $totalPlatforms,
+                'integration_quality' => $socialIntegrationQuality,
+                'recommendations' => $socialRecommendations,
             ],
-            'google_business_profile' => [
-                'likely_has_profile' => null,
-                'confidence_level' => 'not_checked',
-                'profile_completeness_estimate' => null,
-                'signals' => [
-                    'business_type_suitable' => null,
-                    'location_specific' => null,
-                    'contact_info_available' => null,
-                    'reviews_mentioned' => null,
-                ],
-                'recommendations' => ['Google Business Profile search disabled; enable later for full check'],
-            ],
+            'google_business_profile' => $googleBusinessProfile,
             'visibility_scores' => [
                 'website_score' => $websiteScore,
-                'social_media_score' => null,
-                'local_presence_score' => null,
-                'overall_visibility_score' => $websiteScore,
+                'social_media_score' => $socialScore,
+                'local_presence_score' => $localPresenceScore,
+                'overall_visibility_score' => $overallVisibilityScore ?? $websiteScore,
                 'grade' => 'N/A',
-                'grade_description' => 'Manual fetch-only audit; social and local checks not rated',
+                'grade_description' => 'Manual fetch-only audit with SERPER + Places lookups',
             ],
             'key_findings' => [
                 'strengths' => array_slice(array_merge($technicalStrengths, $contentStrengths), 0, 5),
                 'weaknesses' => array_slice(array_merge($technicalIssues, $contentIssues), 0, 5),
-                'opportunities' => ['Re-enable social/GBP checks for deeper insights'],
+                'opportunities' => ['Use SERPER and Google Places data to expand visibility signals'],
                 'threats' => [],
             ],
             'recommendations' => [
@@ -667,7 +615,7 @@ PROMPT;
                         'description' => 'Ensure basic crawlability files exist to improve technical SEO.',
                     ],
                 ],
-                'short_term_strategy' => ['Run full social and Google Business checks after manual review'],
+                'short_term_strategy' => ['Keep SERPER/Google Business signals in sync with on-site updates'],
                 'long_term_strategy' => ['Decide which data to feed into AI for richer scoring'],
                 'quick_wins' => ['Add meta title and description if missing', 'Increase on-page copy for key pages'],
             ],
@@ -675,7 +623,7 @@ PROMPT;
                 'market_position_estimate' => 'unknown',
                 'differentiation_opportunities' => [],
                 'competitive_advantages' => [],
-                'areas_for_improvement' => ['Awaiting full audit once social/GBP checks enabled'],
+                'areas_for_improvement' => ['Expand Google Business signals and cross-link social profiles'],
             ],
             'website_fetch' => $websiteContent,
         ];
@@ -899,30 +847,26 @@ PROMPT;
             }
         }
 
-        // Web search fallback for missing platforms
-        $name = $input['business_name'] ?? '';
-        $city = is_array($input['city'] ?? null) ? implode(' ', $input['city']) : ($input['city'] ?? '');
-        $country = is_array($input['country'] ?? null) ? implode(' ', $input['country']) : ($input['country'] ?? '');
-        $location = trim($city.' '.$country);
-
-        $platformQueries = [
-            'facebook' => $name.' '.$location.' facebook',
-            'instagram' => $name.' '.$location.' instagram',
-            'twitter' => $name.' '.$location.' twitter',
-            'linkedin' => $name.' '.$location.' linkedin',
-            'tiktok' => $name.' '.$location.' tiktok',
+        $platformDomains = [
+            'facebook' => 'facebook.com',
+            'instagram' => 'instagram.com',
+            'twitter' => 'x.com',
+            'linkedin' => 'linkedin.com',
+            'tiktok' => 'tiktok.com',
         ];
 
-        foreach ($platformQueries as $platform => $query) {
+        $tokens = $this->normalizeBusinessTokens($input['business_name'] ?? '');
+
+        foreach ($platformDomains as $platform => $domain) {
             if ($defaults[$platform]['present'] === true) {
                 continue;
             }
 
-            $foundUrl = $this->searchPlatformOnWeb($platform, $query);
-            if ($foundUrl) {
+            $serperUrl = $this->findPlatformViaSerper($input, $platform, $domain, $tokens);
+            if ($serperUrl) {
                 $defaults[$platform] = [
                     'present' => true,
-                    'url' => $foundUrl,
+                    'url' => $serperUrl,
                     'linked_from_website' => false,
                     'found_in_web_search' => true,
                     'profile_quality_estimate' => 'unknown',
@@ -931,6 +875,462 @@ PROMPT;
         }
 
         return $defaults;
+    }
+    
+    private function normalizeBusinessTokens(string $name): array
+    {
+        $name = strtolower($name);
+        $name = preg_replace('/\b(ltd|limited|inc|llc|company)\b/', '', $name);
+        $name = preg_replace('/[^a-z0-9 ]/', '', $name);
+        $name = trim(preg_replace('/\s+/', ' ', $name));
+
+        if ($name === '') {
+            return [];
+        }
+
+        $parts = explode(' ', $name);
+        $tokens = [];
+
+        foreach ($parts as $part) {
+            if (strlen($part) >= 4) {
+                $tokens[] = $part;
+            }
+        }
+
+        if (count($parts) > 1) {
+            $tokens[] = implode('', $parts);
+        }
+
+        return array_unique($tokens);
+    }
+
+    private function buildSerperQuery(array $input, string $platform, string $domain): string
+    {
+        $businessName = $input['business_name'] ?? '';
+        $cities = $input['city'] ?? '';
+        $countries = $input['country'] ?? '';
+
+        $city = is_array($cities) ? implode(' ', $cities) : $cities;
+        $country = is_array($countries) ? implode(' ', $countries) : $countries;
+
+        $baseParts = array_filter([$businessName, $city, $country]);
+        $base = trim(implode(' ', $baseParts));
+
+        if ($base === '') {
+            $base = $businessName;
+        }
+
+        return match ($platform) {
+            'twitter' => "{$base} X",
+            'tiktok' => "{$base} TikTok",
+            'instagram' => "{$base} Instagram",
+            default => "{$base} site:{$domain}",
+        };
+    }
+
+    private function extractSocialUsername(string $url, string $domain): ?string
+    {
+        $path = trim(parse_url($url, PHP_URL_PATH) ?? '', '/');
+        if (! $path) {
+            return null;
+        }
+
+        $blocked = ['p/', 'reel/', 'tv/', 'watch', 'shorts', 'video'];
+        foreach ($blocked as $blockedPattern) {
+            if (str_contains($path, $blockedPattern)) {
+                return null;
+            }
+        }
+
+        if ($domain === 'youtube.com') {
+            if (str_starts_with($path, '@')) {
+                return substr($path, 1);
+            }
+            if (str_starts_with($path, 'c/')) {
+                return substr($path, 2);
+            }
+            if (str_starts_with($path, 'channel/')) {
+                return substr($path, 8);
+            }
+            return null;
+        }
+
+        if ($domain === 'instagram.com') {
+            return str_contains($path, '/') ? null : $path;
+        }
+
+        if ($domain === 'tiktok.com') {
+            return str_starts_with($path, '@') ? substr($path, 1) : null;
+        }
+
+        if ($domain === 'linkedin.com') {
+            return str_starts_with($path, 'company/') ? substr($path, 8) : null;
+        }
+
+        return explode('/', $path)[0];
+    }
+
+    private function resolveSerperCountry(array $input): string
+    {
+        $country = $input['country'] ?? '';
+        if (is_array($country)) {
+            $country = $country[0] ?? '';
+        }
+
+        if (is_string($country) && $country !== '') {
+            return $country;
+        }
+
+        $countryCode = $input['country_code'] ?? '';
+        if (is_string($countryCode) && $countryCode !== '') {
+            return $countryCode;
+        }
+
+        return 'us';
+    }
+
+    private function resolveSerperApiKey(array $input): ?string
+    {
+        $key = $input['serper_api_key'] ?? $this->serperApiKey;
+        if (is_string($key)) {
+            $key = trim($key);
+        }
+
+        return $key !== '' ? $key : null;
+    }
+
+    private function resolveGooglePlacesApiKey(array $input): ?string
+    {
+        $key = $input['google_places_api_key'] ?? $this->googlePlacesApiKey;
+        if (is_string($key)) {
+            $key = trim($key);
+        }
+
+        return $key !== '' ? $key : null;
+    }
+
+    private function findPlatformViaSerper(array $input, string $platform, string $domain, array $tokens): ?string
+    {
+        $apiKey = $this->resolveSerperApiKey($input);
+        if (! $apiKey) {
+            return null;
+        }
+
+        $query = $this->buildSerperQuery($input, $platform, $domain);
+        $payload = [
+            'q' => $query,
+            'gl' => $this->resolveSerperCountry($input),
+        ];
+
+        try {
+            $response = $this->httpClient->post('https://google.serper.dev/search', [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'X-API-KEY' => $apiKey,
+                ],
+                'body' => json_encode($payload),
+                'timeout' => 20,
+            ]);
+        } catch (GuzzleException $e) {
+            Log::info('Serper search failed', [
+                'platform' => $platform,
+                'reason' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        $data = json_decode((string) $response->getBody(), true);
+        if (empty($data['organic'])) {
+            return null;
+        }
+
+        foreach ($data['organic'] as $result) {
+            $url = $result['link'] ?? '';
+            if (! is_string($url) || $url === '') {
+                continue;
+            }
+
+            $matchDomain = $domain;
+            if ($platform === 'twitter') {
+                if (! str_contains($url, 'x.com') && ! str_contains($url, 'twitter.com')) {
+                    continue;
+                }
+                $matchDomain = str_contains($url, 'twitter.com') ? 'twitter.com' : 'x.com';
+            } elseif (! str_contains($url, $domain)) {
+                continue;
+            }
+
+            $username = $this->extractSocialUsername($url, $matchDomain);
+            if (! $username) {
+                continue;
+            }
+
+            $username = strtolower($username);
+            foreach ($tokens as $token) {
+                if ($token !== '' && str_contains($username, $token)) {
+                    return $url;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function detectGoogleBusinessProfile(array $input): array
+    {
+        $apiKey = $this->resolveGooglePlacesApiKey($input);
+
+        $base = [
+            'likely_has_profile' => null,
+            'confidence_level' => $apiKey ? 'low' : 'not_checked',
+            'profile_completeness_estimate' => null,
+            'signals' => [
+                'business_type_suitable' => null,
+                'location_specific' => null,
+                'contact_info_available' => null,
+                'reviews_mentioned' => null,
+            ],
+            'recommendations' => $apiKey
+                ? ['Google Places lookup did not return a listing; verify the business name/location.']
+                : ['Configure GOOGLE_PLACES_API_KEY to enable Google Business Profile detection.'],
+            'details' => [
+                'name' => null,
+                'address' => null,
+                'phone' => null,
+                'website' => null,
+                'rating' => null,
+                'reviews_count' => null,
+            ],
+        ];
+
+        if (! $apiKey) {
+            return $base;
+        }
+
+        $queryParts = array_filter([
+            $input['business_name'] ?? '',
+            is_array($input['city'] ?? null) ? implode(' ', $input['city']) : ($input['city'] ?? ''),
+            is_array($input['country'] ?? null) ? implode(' ', $input['country']) : ($input['country'] ?? ''),
+        ]);
+        $query = trim(implode(' ', $queryParts));
+        if ($query === '') {
+            $query = $input['business_name'] ?? '';
+        }
+
+        try {
+            $response = $this->httpClient->get('https://maps.googleapis.com/maps/api/place/findplacefromtext/json', [
+                'query' => [
+                    'input' => $query,
+                    'inputtype' => 'textquery',
+                    'fields' => 'place_id,name,formatted_address,types',
+                    'key' => $apiKey,
+                ],
+                'timeout' => 20,
+            ]);
+        } catch (GuzzleException $e) {
+            Log::info('Google Places findplace request failed', ['reason' => $e->getMessage()]);
+            $base['recommendations'] = ['Google Places API request failed: '.$e->getMessage()];
+            return $base;
+        }
+
+        $data = json_decode((string) $response->getBody(), true);
+        $candidate = $data['candidates'][0] ?? null;
+
+        if (! $candidate || empty($candidate['place_id'])) {
+            $base['likely_has_profile'] = false;
+            $base['confidence_level'] = 'low';
+            $base['recommendations'] = ['Google Places did not return a matching Google Business Profile listing.'];
+            return $base;
+        }
+
+        try {
+            $detailsResponse = $this->httpClient->get('https://maps.googleapis.com/maps/api/place/details/json', [
+                'query' => [
+                    'place_id' => $candidate['place_id'],
+                    'fields' => 'name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,types,business_status',
+                    'key' => $apiKey,
+                ],
+                'timeout' => 20,
+            ]);
+        } catch (GuzzleException $e) {
+            Log::info('Google Places details request failed', ['reason' => $e->getMessage()]);
+            $base['recommendations'] = ['Google Places details request failed: '.$e->getMessage()];
+            return $base;
+        }
+
+        $details = json_decode((string) $detailsResponse->getBody(), true);
+        $result = $details['result'] ?? [];
+
+        $profileDetails = [
+            'name' => $result['name'] ?? $candidate['name'] ?? null,
+            'address' => $result['formatted_address'] ?? $candidate['formatted_address'] ?? null,
+            'phone' => $result['formatted_phone_number'] ?? null,
+            'website' => $result['website'] ?? null,
+            'rating' => $result['rating'] ?? null,
+            'reviews_count' => $result['user_ratings_total'] ?? null,
+        ];
+
+        $signals = [
+            'business_type_suitable' => ! empty($result['types']),
+            'location_specific' => ! empty($profileDetails['address']),
+            'contact_info_available' => ! empty($profileDetails['phone']) || ! empty($profileDetails['website']),
+            'reviews_mentioned' => ($profileDetails['reviews_count'] ?? 0) > 0,
+        ];
+
+        $profileCompleteness = $this->estimateGbpCompleteness($profileDetails);
+        $confidence = 'medium';
+        if ($profileCompleteness !== null) {
+            if ($profileCompleteness >= 70) {
+                $confidence = 'high';
+            } elseif ($profileCompleteness <= 40) {
+                $confidence = 'low';
+            }
+        }
+
+        return [
+            'likely_has_profile' => true,
+            'confidence_level' => $confidence,
+            'profile_completeness_estimate' => $profileCompleteness,
+            'signals' => $signals,
+            'recommendations' => $this->buildGbpRecommendations($signals, $profileDetails),
+            'details' => $profileDetails,
+        ];
+    }
+
+    private function estimateGbpCompleteness(array $details): ?int
+    {
+        $score = 0;
+        $total = 0;
+
+        $weights = [
+            'address' => 20,
+            'phone' => 20,
+            'website' => 20,
+            'rating' => 20,
+            'reviews_count' => 20,
+        ];
+
+        foreach ($weights as $field => $weight) {
+            $total += $weight;
+            if (! empty($details[$field])) {
+                if ($field === 'reviews_count' && (int) $details[$field] === 0) {
+                    continue;
+                }
+                $score += $weight;
+            }
+        }
+
+        if ($total === 0) {
+            return null;
+        }
+
+        return min(100, (int) round(($score / $total) * 100));
+    }
+
+    private function buildGbpRecommendations(array $signals, array $details): array
+    {
+        $recommendations = [];
+
+        if (! $signals['contact_info_available']) {
+            $recommendations[] = 'Add phone and/or website details to your Google Business Profile.';
+        }
+
+        if (! $signals['reviews_mentioned']) {
+            $recommendations[] = 'Invite customers to leave Google reviews to grow trust.';
+        }
+
+        if (($details['rating'] ?? null) && $details['rating'] < 4.0) {
+            $recommendations[] = 'Address recent reviews to improve your Google rating.';
+        }
+
+        if (empty($recommendations)) {
+            $recommendations[] = 'Keep the Google Business Profile updated with accurate information.';
+        }
+
+        return $recommendations;
+    }
+
+    private function calculateSocialScore(array $platforms): ?int
+    {
+        $present = 0;
+        foreach ($platforms as $platform) {
+            if (($platform['present'] ?? false) === true) {
+                $present++;
+            }
+        }
+
+        if ($present === 0) {
+            return null;
+        }
+
+        return min(100, $present * 20);
+    }
+
+    private function determineIntegrationQuality(array $platforms): string
+    {
+        $present = 0;
+        $linked = 0;
+
+        foreach ($platforms as $platform) {
+            if (($platform['present'] ?? false) === true) {
+                $present++;
+                if (($platform['linked_from_website'] ?? false) === true) {
+                    $linked++;
+                }
+            }
+        }
+
+        if ($present === 0) {
+            return 'poor';
+        }
+
+        $ratio = $linked / $present;
+
+        if ($ratio >= 0.75) {
+            return 'excellent';
+        }
+        if ($ratio >= 0.5) {
+            return 'good';
+        }
+        if ($ratio >= 0.25) {
+            return 'fair';
+        }
+
+        return 'poor';
+    }
+
+    private function buildSocialRecommendations(array $platforms): array
+    {
+        $recommendations = [];
+
+        foreach ($platforms as $name => $platform) {
+            if (($platform['present'] ?? false) !== true) {
+                $recommendations[] = "Claim and optimize your {$name} profile for better visibility.";
+            } elseif (($platform['linked_from_website'] ?? false) !== true) {
+                $recommendations[] = "Link the {$name} profile from your website to strengthen trust signals.";
+            }
+        }
+
+        if (empty($recommendations)) {
+            $recommendations[] = 'Maintain consistent posting on active social channels.';
+        }
+
+        return array_values(array_unique($recommendations));
+    }
+
+    private function calculateOverallVisibilityScore(array $scores): ?int
+    {
+        if (empty($scores)) {
+            return null;
+        }
+
+        $numericScores = array_filter($scores, static fn ($score) => is_numeric($score));
+        if (empty($numericScores)) {
+            return null;
+        }
+
+        return (int) round(array_sum($numericScores) / count($numericScores));
     }
 
     private function urlExists(string $url): bool
@@ -950,50 +1350,6 @@ PROMPT;
         } catch (GuzzleException) {
             return false;
         }
-    }
-
-    private function searchPlatformOnWeb(string $platform, string $query): ?string
-    {
-        $endpoint = 'https://html.duckduckgo.com/html/';
-        try {
-            $response = $this->httpClient->get($endpoint, [
-                'query' => ['q' => $query],
-                'headers' => [
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                ],
-                'timeout' => 15,
-            ]);
-
-            $html = (string) $response->getBody();
-            $pattern = '';
-            switch ($platform) {
-                case 'facebook':
-                    $pattern = '#https?://(www\.)?facebook\.com/[^"\s<]+#i';
-                    break;
-                case 'instagram':
-                    $pattern = '#https?://(www\.)?instagram\.com/[^"\s<]+#i';
-                    break;
-                case 'twitter':
-                    $pattern = '#https?://(www\.)?(twitter\.com|x\.com)/[^"\s<]+#i';
-                    break;
-                case 'linkedin':
-                    $pattern = '#https?://(www\.)?linkedin\.com/[^"\s<]+#i';
-                    break;
-                case 'tiktok':
-                    $pattern = '#https?://(www\.)?tiktok\.com/[^"\s<]+#i';
-                    break;
-                default:
-                    return null;
-            }
-
-            if ($pattern && preg_match($pattern, $html, $match)) {
-                return $match[0];
-            }
-        } catch (GuzzleException) {
-            return null;
-        }
-
-        return null;
     }
 
     private function extractLinkByKeyword(string $html, array $keywords): ?string

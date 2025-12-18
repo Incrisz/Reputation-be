@@ -40,4 +40,12 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4-turbo-preview'),
     ],
 
+    'serper' => [
+        'api_key' => env('SERPER_API_KEY'),
+    ],
+
+    'google_places' => [
+        'api_key' => env('GOOGLE_PLACES_API_KEY'),
+    ],
+
 ];

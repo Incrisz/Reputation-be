@@ -8,7 +8,8 @@ if (class_exists(Dotenv::class)) {
     Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
 }
 
-$SERPER_API_KEY = $_ENV['SERPER_API_KEY'] ?? getenv('SERPER_API_KEY') ?? '';
+$SERPER_API_KEY        = $_ENV['SERPER_API_KEY'] ?? getenv('SERPER_API_KEY') ?? '';
+$GOOGLE_PLACES_API_KEY = $_ENV['GOOGLE_PLACES_API_KEY'] ?? getenv('GOOGLE_PLACES_API_KEY') ?? '';
 
 if ($SERPER_API_KEY === '') {
     http_response_code(500);
@@ -16,21 +17,22 @@ if ($SERPER_API_KEY === '') {
     exit;
 }
 
+if ($GOOGLE_PLACES_API_KEY === '') {
+    http_response_code(500);
+    echo "GOOGLE_PLACES_API_KEY is not configured.";
+    exit;
+}
+
 header("Content-Type: text/plain");
 
 /**
  * =========================
- * CONFIG (UNCHANGED)
+ * CONFIG
  * =========================
  */
 $BUSINESS_NAME  = "Cyfamod Technologies";
 $WEBSITE_URL    = "https://cyfamod.com/";
 $COUNTRY        = "Nigeria";
-
-/**
- * Toggle debug output
- */
-$DEBUG = false;
 
 /**
  * Platforms (UNCHANGED)
@@ -46,10 +48,9 @@ $PLATFORMS = [
 
 /**
  * =========================
- * SOCIAL DISCOVERY (WORKING LOGIC – DO NOT TOUCH)
+ * SOCIAL DISCOVERY (UNCHANGED – WORKING)
  * =========================
  */
-
 function normalizeName(string $name): array
 {
     $name = strtolower($name);
@@ -216,91 +217,114 @@ function findViaSerper(
 
 /**
  * =========================
- * GOOGLE BUSINESS PROFILE (ADDED BACK – SAFE)
+ * GOOGLE BUSINESS PROFILE (GOOGLE PLACES API)
  * =========================
  */
-function detectGoogleBusinessProfile(
+function detectGoogleBusinessProfileViaPlaces(
     string $business,
-    string $apiKey,
-    string $country
+    string $country,
+    string $apiKey
 ): array {
 
-    $queries = [
-        "{$business} Google Maps",
-        "{$business} address",
-        "{$business} phone",
-    ];
+    $query = urlencode("{$business} {$country}");
+    $url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query={$query}&key={$apiKey}";
 
-    foreach ($queries as $query) {
+    // Use curl for better error handling and SSL certificate bypass if needed
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_USERAGENT => "Mozilla/5.0",
+        CURLOPT_HTTPHEADER => [
+            "Referer: " . getenv('APP_URL') ?? 'http://localhost:8000'
+        ]
+    ]);
 
-        $payload = json_encode([
-            "q"  => $query,
-            "gl" => $country,
-            "hl" => "en"
-        ]);
+    $res = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
 
-        $ch = curl_init("https://google.serper.dev/search");
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                "Content-Type: application/json",
-                "X-API-KEY: {$apiKey}"
-            ],
-            CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_TIMEOUT => 20
-        ]);
-
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        if (!$response) continue;
-
-        $data = json_decode($response, true);
-
-        if (!empty($data['knowledgeGraph'])) {
-            $kg = $data['knowledgeGraph'];
-
-            return [
-                "found" => "YES",
-                "name" => $kg['title'] ?? $business,
-                "address" => $kg['address'] ?? "Available on Google",
-                "phone" => $kg['phone'] ?? "Available on Google",
-                "rating" => $kg['rating'] ?? "Available on Google",
-                "reviews" => $kg['reviews'] ?? "Available on Google",
-                "confidence" => "high"
-            ];
-        }
-
-        if (!empty($data['places'])) {
-            $p = $data['places'][0];
-
-            return [
-                "found" => "YES",
-                "name" => $p['title'] ?? $business,
-                "address" => $p['address'] ?? "Available on Google",
-                "phone" => $p['phoneNumber'] ?? "Available on Google",
-                "rating" => $p['rating'] ?? "Available on Google",
-                "reviews" => $p['reviews'] ?? "Available on Google",
-                "confidence" => "medium"
-            ];
-        }
-
-        foreach ($data['organic'] ?? [] as $r) {
-            if (str_contains($r['link'], 'google.com/maps')) {
-                return [
-                    "found" => "YES",
-                    "name" => $business,
-                    "address" => "Available on Google Maps",
-                    "phone" => "Available on Google Maps",
-                    "rating" => "Available on Google Maps",
-                    "reviews" => "Available on Google Maps",
-                    "confidence" => "medium"
-                ];
-            }
-        }
+    if (!$res) {
+        error_log("GBP API Error - Text Search CURL: {$curlError}, URL: {$url}");
+        return gbpNotFound();
     }
 
+    if ($httpCode !== 200) {
+        error_log("GBP API Error - Text Search HTTP: {$httpCode}, Response: {$res}");
+        return gbpNotFound();
+    }
+
+    $data = json_decode($res, true);
+
+    if (!isset($data['status'])) {
+        error_log("GBP API Error - Invalid response (no status): " . substr($res, 0, 200));
+        return gbpNotFound();
+    }
+
+    if ($data['status'] !== 'OK') {
+        error_log("GBP API Error - Text Search Status: {$data['status']}, Query: {$query}, Full Response: {$res}");
+        return gbpNotFound();
+    }
+
+    if (empty($data['results'][0])) {
+        error_log("GBP API Warning - No results found for: {$business} in {$country}");
+        return gbpNotFound();
+    }
+
+    $place = $data['results'][0];
+    $placeId = $place['place_id'];
+
+    // Get place details
+    $detailsUrl = "https://maps.googleapis.com/maps/api/place/details/json?place_id={$placeId}&fields=name,formatted_address,formatted_phone_number,rating,user_ratings_total&key={$apiKey}";
+    
+    $ch = curl_init($detailsUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_USERAGENT => "Mozilla/5.0"
+    ]);
+
+    $detailsRes = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (!$detailsRes || $httpCode !== 200) {
+        error_log("GBP API Error - Details: HTTP {$httpCode}, Place ID: {$placeId}");
+        return gbpNotFound();
+    }
+
+    $detailsData = json_decode($detailsRes, true);
+
+    if ($detailsData['status'] !== 'OK') {
+        error_log("GBP API Error - Details Status: {$detailsData['status']}, Place ID: {$placeId}");
+        return gbpNotFound();
+    }
+
+    $details = $detailsData['result'] ?? [];
+
+    if (empty($details)) {
+        error_log("GBP API Warning - No details found for Place ID: {$placeId}");
+        return gbpNotFound();
+    }
+
+    return [
+        "found" => "YES",
+        "name" => $details['name'] ?? $business,
+        "address" => $details['formatted_address'] ?? "N/A",
+        "phone" => $details['formatted_phone_number'] ?? "N/A",
+        "rating" => $details['rating'] ?? "N/A",
+        "reviews" => $details['user_ratings_total'] ?? "N/A",
+        "confidence" => "very_high"
+    ];
+}
+
+function gbpNotFound(): array
+{
     return [
         "found" => "NO",
         "name" => "N/A",
@@ -349,10 +373,10 @@ foreach ($PLATFORMS as $platform => $domain) {
     echo "  Confidence: {$result['confidence']}\n\n";
 }
 
-$gbp = detectGoogleBusinessProfile(
+$gbp = detectGoogleBusinessProfileViaPlaces(
     $BUSINESS_NAME,
-    $SERPER_API_KEY,
-    $COUNTRY
+    $COUNTRY,
+    $GOOGLE_PLACES_API_KEY
 );
 
 echo "GOOGLE BUSINESS PROFILE\n";
@@ -363,4 +387,15 @@ echo "Address: {$gbp['address']}\n";
 echo "Phone: {$gbp['phone']}\n";
 echo "Rating: {$gbp['rating']}\n";
 echo "Reviews Count: {$gbp['reviews']}\n";
-echo "Confidence: {$gbp['confidence']}\n";
+echo "Confidence: {$gbp['confidence']}\n\n";
+
+// Show log file location for debugging
+echo "DEBUG INFO\n";
+echo "==========\n";
+$logFile = dirname(__DIR__) . '/storage/logs/laravel.log';
+if (file_exists($logFile)) {
+    echo "Check error logs at: {$logFile}\n";
+    echo "Run: tail -f {$logFile}\n";
+} else {
+    echo "Log file not found at: {$logFile}\n";
+}

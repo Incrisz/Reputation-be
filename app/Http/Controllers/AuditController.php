@@ -240,6 +240,26 @@ class AuditController extends Controller
             // Get validated input
             $input = $request->validated();
 
+            $serperApiKey = $this->getSerperApiKey();
+            $googlePlacesApiKey = $this->getGooglePlacesApiKey();
+
+            if (! $serperApiKey) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'SERPER_API_KEY is missing. Add it to your .env file to enable social media detection.',
+                ], 500);
+            }
+
+            if (! $googlePlacesApiKey) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'GOOGLE_PLACES_API_KEY is missing. Add it to your .env file to enable Google Business Profile detection.',
+                ], 500);
+            }
+
+            $input['serper_api_key'] = $serperApiKey;
+            $input['google_places_api_key'] = $googlePlacesApiKey;
+
             // Run AI-powered comprehensive audit
             $auditResponse = $this->aiAuditEngine->runComprehensiveAudit($input);
 
@@ -268,5 +288,25 @@ class AuditController extends Controller
                 'trace' => config('app.debug') ? $e->getTraceAsString() : null,
             ], 500);
         }
+    }
+
+    private function getSerperApiKey(): ?string
+    {
+        $key = config('services.serper.api_key', env('SERPER_API_KEY'));
+        if (is_string($key)) {
+            $key = trim($key);
+        }
+
+        return $key !== '' ? $key : null;
+    }
+
+    private function getGooglePlacesApiKey(): ?string
+    {
+        $key = config('services.google_places.api_key', env('GOOGLE_PLACES_API_KEY'));
+        if (is_string($key)) {
+            $key = trim($key);
+        }
+
+        return $key !== '' ? $key : null;
     }
 }
