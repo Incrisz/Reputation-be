@@ -116,6 +116,8 @@ class OpenAIService
         $website = $input['website_url'] ?? 'N/A';
         $domain = parse_url($website, PHP_URL_HOST) ?: $website;
         $description = $input['description'] ?? 'Not provided';
+        $keywords = ! empty($input['keywords']) ? implode(', ', array_filter($input['keywords'], 'is_string')) : 'Not provided';
+        $targetAudience = $input['target_audience'] ?? 'Not provided';
         $cities = is_array($input['city'] ?? null) ? implode(', ', $input['city']) : ($input['city'] ?? 'N/A');
         $countries = is_array($input['country'] ?? null) ? implode(', ', $input['country']) : ($input['country'] ?? 'N/A');
 
@@ -185,6 +187,8 @@ Business:
 - Domain: {$domain}
 - Description: {$description}
 - Location: {$cities}, {$countries}
+- Target Audience: {$targetAudience}
+- Keywords: {$keywords}
 
 Trusted (linked from website – already verified):
 {$trustedBlock}

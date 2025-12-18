@@ -3,3 +3,6 @@ pulled records with names and description etc then skip the ones linked to websi
 please Ai should always do this before sending the final output for all section 
 
 inputted datae + pulled website data + social media data and google business profile data then pass it to the LLM(AI) then output the ai final results with recommendations 
+
+
+anthropic/claude-3.7-sonnet:thinking -- 0.008
