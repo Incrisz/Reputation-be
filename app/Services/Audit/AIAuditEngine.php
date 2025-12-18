@@ -342,8 +342,8 @@ You are conducting a comprehensive business visibility audit. Analyze the provid
 Analyze ALL the provided information (website content, web search results for social media, and Google Business search results) to produce a comprehensive audit covering:
 
 1. **Website Audit & SEO Analysis** - Evaluate technical SEO, content quality, local SEO signals, security, UX, indexability, and brand consistency
-2. **Social Media Detection** - IMPORTANT: Use the WEB SEARCH RESULTS provided above to detect social media presence. DO NOT rely solely on website links. Analyze the search results HTML previews to determine if the business actually has profiles on each platform. Only mark a platform as "present: true" if you find strong evidence in the search results, not just because a link exists on the website.
-3. **Google Business Profile Assessment** - Use the WEB SEARCH RESULTS to determine if the business has a Google Business Profile. Look for Google Maps links, review mentions, and business listings in the search results.
+2. **Social Media Detection & Verification** - IMPORTANT: Treat links pulled directly from the official website as VERIFIED. For every other discovered record, compare the name/description/industry/location/keywords/website details against the user input and website content. Classify each record as VERIFIED, LIKELY MATCH, UNCERTAIN, or REJECTED. NEVER include UNCERTAIN or REJECTED records as official presence in the final output.
+3. **Google Business Profile Assessment & Verification** - Use the search results to detect Google Business Profile listings, then compare the listing details against the provided business data. Only include the GBP record if it can be classified as VERIFIED or LIKELY MATCH; otherwise mark it as not verified.
 4. **Visibility Score** - Calculate scores (0-100) for website, social media, and overall online visibility based on actual findings
 5. **Actionable Recommendations** - Provide specific, prioritized recommendations for improvement
 
@@ -388,32 +388,44 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text) wit
       "facebook": {
         "url": "resolved URL or null/NOT FOUND",
         "source": "website/search/none",
-        "confidence": "HIGH/LOW/NONE"
+        "confidence": "HIGH/LOW/NONE",
+        "verification_status": "verified/likely_match/uncertain/rejected/not_found",
+        "verification_notes": "string"
       },
       "instagram": {
         "url": "resolved URL or null/NOT FOUND",
         "source": "website/search/none",
-        "confidence": "HIGH/LOW/NONE"
+        "confidence": "HIGH/LOW/NONE",
+        "verification_status": "verified/likely_match/uncertain/rejected/not_found",
+        "verification_notes": "string"
       },
       "twitter": {
         "url": "resolved URL or null/NOT FOUND",
         "source": "website/search/none",
-        "confidence": "HIGH/LOW/NONE"
+        "confidence": "HIGH/LOW/NONE",
+        "verification_status": "verified/likely_match/uncertain/rejected/not_found",
+        "verification_notes": "string"
       },
       "linkedin": {
         "url": "resolved URL or null/NOT FOUND",
         "source": "website/search/none",
-        "confidence": "HIGH/LOW/NONE"
+        "confidence": "HIGH/LOW/NONE",
+        "verification_status": "verified/likely_match/uncertain/rejected/not_found",
+        "verification_notes": "string"
       },
       "youtube": {
         "url": "resolved URL or null/NOT FOUND",
         "source": "website/search/none",
-        "confidence": "HIGH/LOW/NONE"
+        "confidence": "HIGH/LOW/NONE",
+        "verification_status": "verified/likely_match/uncertain/rejected/not_found",
+        "verification_notes": "string"
       },
       "tiktok": {
         "url": "resolved URL or null/NOT FOUND",
         "source": "website/search/none",
-        "confidence": "HIGH/LOW/NONE"
+        "confidence": "HIGH/LOW/NONE",
+        "verification_status": "verified/likely_match/uncertain/rejected/not_found",
+        "verification_notes": "string"
       }
     },
     "social_score": 0-100,
@@ -429,7 +441,9 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text) wit
     "rating": number or "N/A",
     "reviews": number or "N/A",
     "confidence": "very_high/high/medium/low",
-    "score": 0-100
+    "score": 0-100,
+    "verification_status": "verified/likely_match/uncertain/rejected/not_verified",
+    "verification_notes": "string"
   },
   "visibility_scores": {
     "website_audit": 0-100,
@@ -794,6 +808,8 @@ PROMPT;
                     'url' => $websiteSocials[$platform],
                     'source' => 'website',
                     'confidence' => 'HIGH',
+                    'verification_status' => 'verified',
+                    'verification_notes' => 'Linked directly from the official website.',
                 ];
                 continue;
             }
@@ -801,11 +817,24 @@ PROMPT;
             $serperUrl = $this->findPlatformViaSerper($input, $platform, $domain, $tokens);
 
             if ($serperUrl) {
-                $results[$platform] = [
-                    'url' => $serperUrl,
-                    'source' => 'search',
-                    'confidence' => 'LOW',
-                ];
+                $verification = $this->verifyCandidateRecord($serperUrl, $tokens, $input);
+                if ($verification['allowed']) {
+                    $results[$platform] = [
+                        'url' => $serperUrl,
+                        'source' => 'search',
+                        'confidence' => 'LOW',
+                        'verification_status' => $verification['status'],
+                        'verification_notes' => $verification['reason'],
+                    ];
+                } else {
+                    $results[$platform] = [
+                        'url' => 'NOT VERIFIED',
+                        'source' => 'none',
+                        'confidence' => 'NONE',
+                        'verification_status' => $verification['status'],
+                        'verification_notes' => $verification['reason'],
+                    ];
+                }
                 continue;
             }
 
@@ -813,6 +842,8 @@ PROMPT;
                 'url' => 'NOT FOUND',
                 'source' => 'none',
                 'confidence' => 'NONE',
+                'verification_status' => 'not_found',
+                'verification_notes' => 'No matching profile was discovered via website or SERPER search.',
             ];
         }
 
@@ -883,6 +914,69 @@ PROMPT;
         }
 
         return array_values(array_unique(array_filter($tokens)));
+    }
+
+    private function verifyCandidateRecord(string $url, array $tokens, array $input): array
+    {
+        $urlLower = strtolower($url);
+        $score = 0;
+        $matched = [];
+
+        foreach ($tokens as $token) {
+            if ($token !== '' && str_contains($urlLower, $token)) {
+                $score += 2;
+                $matched[] = $token;
+            }
+        }
+
+        $hostSlug = $this->extractHostSlug($input['website_url'] ?? '');
+        if ($hostSlug && str_contains($urlLower, $hostSlug)) {
+            $score += 2;
+            $matched[] = $hostSlug;
+        }
+
+        $industry = strtolower((string) ($input['industry'] ?? ''));
+        if ($industry !== '' && str_contains($urlLower, $industry)) {
+            $score += 1;
+            $matched[] = $industry;
+        }
+
+        $status = 'rejected';
+        $reason = 'No recognizable business tokens matched the discovered record.';
+        $allowed = false;
+
+        if ($score >= 5) {
+            $status = 'verified';
+            $allowed = true;
+            $reason = 'High-confidence match: '.implode(', ', array_unique($matched));
+        } elseif ($score >= 3) {
+            $status = 'likely_match';
+            $allowed = true;
+            $reason = 'Partial match with business keywords: '.implode(', ', array_unique($matched));
+        } elseif ($score >= 1) {
+            $status = 'uncertain';
+            $reason = 'Insufficient business signals found in the discovered record.';
+        }
+
+        return [
+            'status' => $status,
+            'reason' => $reason,
+            'allowed' => $allowed,
+        ];
+    }
+
+    private function extractHostSlug(?string $url): ?string
+    {
+        if (! $url) {
+            return null;
+        }
+
+        $host = parse_url($url, PHP_URL_HOST);
+        if (! $host) {
+            return null;
+        }
+
+        return str_replace('.', '', strtolower($host));
     }
 
     private function tokenizeText(string $text): array
@@ -1163,9 +1257,14 @@ PROMPT;
         ];
 
         $tokens = $this->buildSearchTokens($input);
-        if (! $this->gbpMatchesTokens($profile, $tokens)) {
-            return $this->gbpNotFound('GBP candidate failed keyword verification');
+        $verification = $this->gbpMatchesTokens($profile, $tokens);
+        if (! $verification['allowed']) {
+            return $this->gbpNotFound($verification['reason']);
         }
+
+        $profile['verification_status'] = $verification['status'];
+        $profile['verification_notes'] = $verification['reason'];
+        $profile['score'] = null;
 
         return $profile;
     }
@@ -1195,27 +1294,69 @@ PROMPT;
             'rating' => 'N/A',
             'reviews' => 'N/A',
             'confidence' => 'low',
+            'score' => 0,
+            'verification_status' => 'not_verified',
+            'verification_notes' => $reason !== '' ? $reason : 'Google Business Profile not detected or verification failed.',
         ];
     }
 
-    private function gbpMatchesTokens(array $profile, array $tokens): bool
+    private function gbpMatchesTokens(array $profile, array $tokens): array
     {
-        if (empty($tokens)) {
-            return true;
-        }
-
         $haystack = strtolower(($profile['name'] ?? '').' '.($profile['address'] ?? ''));
         if ($haystack === '') {
-            return false;
+            return [
+                'status' => 'uncertain',
+                'reason' => 'GBP listing missing name/address data for verification.',
+                'allowed' => false,
+            ];
         }
 
+        if (empty($tokens)) {
+            return [
+                'status' => 'likely_match',
+                'reason' => 'No user tokens provided; using Google-provided data as likely match.',
+                'allowed' => true,
+            ];
+        }
+
+        $score = 0;
+        $matched = [];
         foreach ($tokens as $token) {
             if ($token !== '' && str_contains($haystack, $token)) {
-                return true;
+                $score += 2;
+                $matched[] = $token;
             }
         }
 
-        return false;
+        if ($score >= 6) {
+            return [
+                'status' => 'verified',
+                'reason' => 'GBP listing matches business tokens: '.implode(', ', array_unique($matched)),
+                'allowed' => true,
+            ];
+        }
+
+        if ($score >= 3) {
+            return [
+                'status' => 'likely_match',
+                'reason' => 'GBP listing partially matches tokens: '.implode(', ', array_unique($matched)),
+                'allowed' => true,
+            ];
+        }
+
+        if ($score > 0) {
+            return [
+                'status' => 'uncertain',
+                'reason' => 'GBP listing had weak token overlap: '.implode(', ', array_unique($matched)),
+                'allowed' => false,
+            ];
+        }
+
+        return [
+            'status' => 'rejected',
+            'reason' => 'GBP listing tokens do not match provided business data.',
+            'allowed' => false,
+        ];
     }
 
     private function calculateLocalPresenceScore(array $gbp): ?int
@@ -1252,14 +1393,14 @@ PROMPT;
         $maxRawScore = count($this->socialPlatforms) * (12 + 3); // perfect scenario (all linked from website)
 
         foreach ($platforms as $platform) {
-            $source = $platform['source'] ?? 'none';
-            if ($source === 'none') {
+            $status = $platform['verification_status'] ?? 'not_found';
+            if (! in_array($status, ['verified', 'likely_match'], true)) {
                 continue;
             }
 
             $foundAny = true;
-            $rawScore += 12; // base score per platform found
-            $rawScore += $source === 'website' ? 3 : 2; // bonus when linked vs found externally
+            $rawScore += 12;
+            $rawScore += ($platform['source'] ?? '') === 'website' ? 3 : 2;
         }
 
         if (! $foundAny) {
@@ -1275,9 +1416,10 @@ PROMPT;
 
         foreach ($platforms as $platform) {
             if (
-                ($platform['source'] ?? 'none') !== 'none'
+                in_array($platform['verification_status'] ?? '', ['verified', 'likely_match'], true)
                 && ! empty($platform['url'])
                 && $platform['url'] !== 'NOT FOUND'
+                && $platform['url'] !== 'NOT VERIFIED'
             ) {
                 $count++;
             }
@@ -1327,11 +1469,17 @@ PROMPT;
         $recommendations = [];
 
         foreach ($platforms as $name => $platform) {
+            $status = $platform['verification_status'] ?? 'not_found';
             $source = $platform['source'] ?? 'none';
-            if ($source === 'none') {
-                $recommendations[] = "Claim and optimize your {$name} profile, then add it to your website.";
-            } elseif ($source === 'search') {
-                $recommendations[] = "Link the {$name} profile from your website to strengthen trust signals.";
+
+            if ($status === 'not_found') {
+                $recommendations[] = "Claim and optimize your {$name} profile, then link it from the website.";
+            } elseif ($status === 'rejected') {
+                $recommendations[] = "Ignore the discovered {$name} record that does not match your business; create an official profile instead.";
+            } elseif ($status === 'uncertain') {
+                $recommendations[] = "Manually review the {$name} profile discovered via search to confirm ownership before sharing it publicly.";
+            } elseif ($source === 'search' && in_array($status, ['verified', 'likely_match'], true)) {
+                $recommendations[] = "Link the verified {$name} profile from your website to strengthen trust signals.";
             }
         }
 
@@ -1611,12 +1759,12 @@ PROMPT;
                     'business_name' => $input['business_name'],
                     'website' => $input['website_url'],
                     'platforms' => [
-                        'facebook' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
-                        'instagram' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
-                        'twitter' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
-                        'linkedin' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
-                        'youtube' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
-                        'tiktok' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE'],
+                        'facebook' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE', 'verification_status' => 'not_found', 'verification_notes' => 'AI audit unavailable'],
+                        'instagram' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE', 'verification_status' => 'not_found', 'verification_notes' => 'AI audit unavailable'],
+                        'twitter' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE', 'verification_status' => 'not_found', 'verification_notes' => 'AI audit unavailable'],
+                        'linkedin' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE', 'verification_status' => 'not_found', 'verification_notes' => 'AI audit unavailable'],
+                        'youtube' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE', 'verification_status' => 'not_found', 'verification_notes' => 'AI audit unavailable'],
+                        'tiktok' => ['url' => null, 'source' => 'none', 'confidence' => 'NONE', 'verification_status' => 'not_found', 'verification_notes' => 'AI audit unavailable'],
                     ],
                     'social_score' => 50,
                     'total_platforms' => 0,
@@ -1632,6 +1780,8 @@ PROMPT;
                     'reviews' => 'N/A',
                     'confidence' => 'low',
                     'score' => 50,
+                    'verification_status' => 'not_verified',
+                    'verification_notes' => 'AI audit unavailable',
                 ],
                 'visibility_scores' => [
                     'website_audit' => 50,
