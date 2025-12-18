@@ -1,11 +1,26 @@
 <?php
 
+use Dotenv\Dotenv;
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+if (class_exists(Dotenv::class)) {
+    Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
+}
+
+$SERPER_API_KEY = $_ENV['SERPER_API_KEY'] ?? getenv('SERPER_API_KEY') ?? '';
+
+if ($SERPER_API_KEY === '') {
+    http_response_code(500);
+    echo "SERPER_API_KEY is not configured.";
+    exit;
+}
+
 header("Content-Type: text/plain");
 
 /**
  * CONFIG
  */
-$SERPER_API_KEY = "";
 $BUSINESS_NAME  = "Cyfamod Technologies";
 $WEBSITE_URL    = "https://cyfamod.com/";
 $COUNTRY        = "Nigeria";
