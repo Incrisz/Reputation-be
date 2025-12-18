@@ -80,7 +80,7 @@ class AIAuditEngine
         $manualResults = $this->buildManualAuditResults($input, $websiteContent);
 
         $osatChecks = $this->osatAuditService->run($input['website_url']);
-        $manualResults['osat_checks'] = $osatChecks;
+        unset($osatChecks['extractor']);
 
         $manualResults['website_audit']['technical_seo']['page_speed_estimate'] = [
             'desktop_ms' => $this->resolvePageSpeed($osatChecks, 'desktop', $websiteContent['response_time_ms_desktop'] ?? null),
@@ -116,7 +116,7 @@ class AIAuditEngine
 
     private function buildMetadataNote(array $aiRecommendations): string
     {
-        $base = 'Social media discovery leverages website parsing + SERPER; Google Business Profile detection via Places API. OSAT-style probes added (lighthouse/security/extractor/sitemap/internal/keywords). ';
+        $base = 'Social media discovery leverages website parsing + SERPER; Google Business Profile detection via Places API. OSAT-style probes added (lighthouse/security/sitemap/internal/keywords). ';
 
         if (($aiRecommendations['success'] ?? false) === true) {
             return $base.'AI recommendations generated via OpenAI.';
@@ -570,14 +570,6 @@ PROMPT;
         $googleBusinessScore = $this->calculateLocalPresenceScore($googleBusinessProfile);
         $googleBusinessProfile['score'] = $googleBusinessScore;
 
-        $overallVisibilityScore = $this->calculateOverallGradeScore([
-            $technicalScore,
-            $contentScore,
-            $socialScore ?? 0,
-            $googleBusinessScore ?? 0,
-        ]);
-        $grade = $this->resolveLetterGrade($overallVisibilityScore);
-
         return [
             'website_audit' => [
                 'technical_seo' => [
@@ -622,43 +614,6 @@ PROMPT;
                 'recommendations' => $socialRecommendations,
             ],
             'google_business_profile' => $googleBusinessProfile,
-            'visibility_scores' => [
-                'website_audit' => $technicalScore,
-                'content_quality' => $contentScore,
-                'social_media_presence' => $socialScore ?? 0,
-                'google_business_profile' => $googleBusinessScore ?? 0,
-                'overall_visibility_score' => $overallVisibilityScore,
-                'grade' => $grade,
-                'grade_description' => $this->describeGrade($grade),
-            ],
-            'key_findings' => [
-                'strengths' => array_slice(array_merge($technicalStrengths, $contentStrengths), 0, 5),
-                'weaknesses' => array_slice(array_merge($technicalIssues, $contentIssues), 0, 5),
-                'opportunities' => ['Use SERPER social matches and Google Places data to expand visibility signals'],
-                'threats' => [],
-            ],
-            'recommendations' => [
-                'immediate_actions' => [
-                    [
-                        'priority' => 'medium',
-                        'category' => 'technical',
-                        'action' => 'Resolve missing robots.txt/sitemap if absent',
-                        'impact' => 'medium',
-                        'effort' => 'low',
-                        'description' => 'Ensure basic crawlability files exist to improve technical SEO.',
-                    ],
-                ],
-                'short_term_strategy' => ['Link SERPER-detected social profiles across the website and verify GBP data.'],
-                'long_term_strategy' => ['Decide which verified channels to promote and keep GBP reviews flowing.'],
-                'quick_wins' => ['Add meta title and description if missing', 'Increase on-page copy for key pages', 'Add social icons that point to verified profiles'],
-            ],
-            'competitive_insights' => [
-                'market_position_estimate' => 'unknown',
-                'differentiation_opportunities' => [],
-                'competitive_advantages' => [],
-                'areas_for_improvement' => ['Expand Google Business signals and cross-link social profiles'],
-            ],
-            'website_fetch' => $websiteContent,
         ];
     }
 
@@ -1490,47 +1445,6 @@ PROMPT;
         return array_values(array_unique($recommendations));
     }
 
-    private function calculateOverallGradeScore(array $scores): int
-    {
-        if (empty($scores)) {
-            return 0;
-        }
-
-        $normalized = array_map(static function ($score) {
-            if ($score === null) {
-                return 0;
-            }
-
-            return max(0, min(100, (int) round($score)));
-        }, $scores);
-
-        return (int) round(array_sum($normalized) / count($normalized));
-    }
-
-    private function resolveLetterGrade(int $score): string
-    {
-        return match (true) {
-            $score >= 90 => 'A',
-            $score >= 80 => 'B',
-            $score >= 70 => 'C',
-            $score >= 60 => 'D',
-            $score >= 50 => 'E',
-            default => 'F',
-        };
-    }
-
-    private function describeGrade(string $grade): string
-    {
-        return match ($grade) {
-            'A' => 'Excellent visibility across all pillars',
-            'B' => 'Strong visibility with minor gaps',
-            'C' => 'Average visibility with room to grow',
-            'D' => 'Below-average visibility; needs attention',
-            'E' => 'Weak visibility across channels',
-            default => 'Critical visibility gaps detected',
-        };
-    }
-
     private function urlExists(string $url): bool
     {
         try {
@@ -1782,42 +1696,6 @@ PROMPT;
                     'score' => 50,
                     'verification_status' => 'not_verified',
                     'verification_notes' => 'AI audit unavailable',
-                ],
-                'visibility_scores' => [
-                    'website_audit' => 50,
-                    'content_quality' => 50,
-                    'social_media_presence' => 50,
-                    'google_business_profile' => 50,
-                    'overall_visibility_score' => 50,
-                    'grade' => 'E',
-                    'grade_description' => $this->describeGrade('E'),
-                ],
-                'key_findings' => [
-                    'strengths' => [],
-                    'weaknesses' => ['AI-powered audit requires OpenAI API key'],
-                    'opportunities' => ['Enable AI audit for comprehensive analysis'],
-                    'threats' => [],
-                ],
-                'recommendations' => [
-                    'immediate_actions' => [
-                        [
-                            'priority' => 'high',
-                            'category' => 'technical',
-                            'action' => 'Configure OpenAI API key',
-                            'impact' => 'high',
-                            'effort' => 'low',
-                            'description' => 'Add OPENAI_API_KEY to .env file to enable AI-powered comprehensive audits',
-                        ],
-                    ],
-                    'short_term_strategy' => ['Enable AI audit functionality'],
-                    'long_term_strategy' => ['Implement regular AI-powered audits'],
-                    'quick_wins' => ['Add OpenAI API key to unlock full audit capabilities'],
-                ],
-                'competitive_insights' => [
-                    'market_position_estimate' => 'unknown',
-                    'differentiation_opportunities' => [],
-                    'competitive_advantages' => [],
-                    'areas_for_improvement' => ['Enable AI audit for competitive analysis'],
                 ],
             ],
             'metadata' => [

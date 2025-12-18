@@ -32,7 +32,7 @@ class AuditController extends Controller
     #[OA\Post(
         path: '/api/audit/run',
         summary: 'Run comprehensive business visibility audit',
-        description: 'Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, OSAT-style technical probes (Lighthouse/HTTP Observatory/extractors), and AI-powered recommendations via OpenAI.',
+        description: 'Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, OSAT-style technical probes (Lighthouse/HTTP Observatory/sitemap/internal/keywords), and AI-powered recommendations via OpenAI.',
         tags: ['Audit'],
         requestBody: new OA\RequestBody(
             required: true,
@@ -162,26 +162,6 @@ class AuditController extends Controller
                                 ),
                                 new OA\Property(property: 'social_media_presence', type: 'object'),
                                 new OA\Property(property: 'google_business_profile', type: 'object'),
-                                new OA\Property(
-                                    property: 'osat_checks',
-                                    type: 'object',
-                                    properties: [
-                                        new OA\Property(
-                                            property: 'lighthouse',
-                                            type: 'object',
-                                            properties: [
-                                                new OA\Property(property: 'scores', type: 'object', example: ['performance' => 0.92, 'seo' => 0.88]),
-                                                new OA\Property(property: 'fetched_at', type: 'string', format: 'date-time')
-                                            ]
-                                        ),
-                                        new OA\Property(property: 'security', type: 'object', example: ['score' => 110, 'grade' => 'B']),
-                                        new OA\Property(property: 'extractor', type: 'object', example: ['headers' => ['h1' => ['count' => 1]]]),
-                                        new OA\Property(property: 'sitemap', type: 'array', items: new OA\Items(type: 'object')),
-                                        new OA\Property(property: 'internal_links', type: 'object', example: ['summary' => ['pages_crawled' => 5]]),
-                                        new OA\Property(property: 'keywords', type: 'array', items: new OA\Items(type: 'object')),
-                                        new OA\Property(property: 'summary', type: 'string', example: 'First sentences of page text')
-                                    ]
-                                ),
                                 new OA\Property(
                                     property: 'ai_recommendations',
                                     type: 'object',

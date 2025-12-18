@@ -75,7 +75,7 @@ class OpenAIService
                     'messages' => [
                         [
                             'role' => 'system',
-                            'content' => 'You are an expert digital marketing consultant specializing in online business visibility, SEO, and reputation management. Provide actionable, specific recommendations based on audit data.'
+                            'content' => 'You are a strict verification assistant. Only determine whether social media or Google Business listings belong to the provided business. Use short verdicts like "Instagram is verified via website" or "TikTok page does not belong to this business." Never mention SEO, HTML, or other data.'
                         ],
                         [
                             'role' => 'user',
@@ -112,57 +112,101 @@ class OpenAIService
      */
     private function buildPrompt(array $auditData, array $input): string
     {
-        $businessInfo = "Business: {$input['business_name']}\n";
-        $businessInfo .= "Industry: {$input['industry']}\n";
+        $businessName = $input['business_name'] ?? 'Unknown Business';
+        $website = $input['website_url'] ?? 'N/A';
+        $domain = parse_url($website, PHP_URL_HOST) ?: $website;
+        $description = $input['description'] ?? 'Not provided';
+        $cities = is_array($input['city'] ?? null) ? implode(', ', $input['city']) : ($input['city'] ?? 'N/A');
+        $countries = is_array($input['country'] ?? null) ? implode(', ', $input['country']) : ($input['country'] ?? 'N/A');
 
-        // Handle multiple locations
-        $cities = is_array($input['city']) ? implode(', ', $input['city']) : $input['city'];
-        $countries = is_array($input['country']) ? implode(', ', $input['country']) : $input['country'];
-        $businessInfo .= "Location: {$cities}, {$countries}\n";
+        $platforms = $auditData['social_media_presence']['platforms'] ?? [];
+        $trusted = [];
+        $unverified = [];
 
-        $businessInfo .= "Website: {$input['website_url']}\n";
-        $businessInfo .= "Target Audience: {$input['target_audience']}\n";
+        foreach ($platforms as $name => $platform) {
+            $url = $platform['url'] ?? null;
+            if (! $url || $url === 'NOT FOUND' || $url === 'NOT VERIFIED') {
+                continue;
+            }
 
-        if (!empty($input['keywords'])) {
-            $businessInfo .= "Keywords: " . implode(', ', $input['keywords']) . "\n";
+            $source = $platform['source'] ?? 'none';
+            $status = $platform['verification_status'] ?? 'not_found';
+            $notes = $platform['verification_notes'] ?? '';
+
+            if ($source === 'website') {
+                $trusted[] = strtoupper($name).": {$url}";
+            } else {
+                $unverified[] = [
+                    'platform' => strtoupper($name),
+                    'url' => $url,
+                    'status' => $status,
+                    'notes' => $notes,
+                ];
+            }
         }
 
-        if (!empty($input['competitors'])) {
-            $businessInfo .= "Competitors: " . implode(', ', $input['competitors']) . "\n";
+        $gbp = $auditData['google_business_profile'] ?? [];
+        $gbpCandidate = null;
+        if (($gbp['found'] ?? 'NO') === 'YES' && ! empty($gbp['name'])) {
+            $gbpCandidate = [
+                'name' => $gbp['name'],
+                'address' => $gbp['address'] ?? 'N/A',
+                'phone' => $gbp['phone'] ?? 'N/A',
+                'rating' => $gbp['rating'] ?? 'N/A',
+                'reviews' => $gbp['reviews'] ?? 'N/A',
+                'status' => $gbp['verification_status'] ?? 'unknown',
+                'notes' => $gbp['verification_notes'] ?? '',
+            ];
         }
 
-        $auditSummary = "AUDIT RESULTS:\n\n";
-        $auditSummary .= json_encode($auditData, JSON_PRETTY_PRINT);
+        $trustedBlock = empty($trusted) ? "- None\n" : implode("\n", array_map(fn ($line) => "- {$line}", $trusted))."\n";
 
-        $prompt = <<<PROMPT
-I need you to analyze the following business and provide comprehensive recommendations for improving their online visibility and reputation.
+        $unverifiedBlock = "- None\n";
+        if (! empty($unverified)) {
+            $lines = [];
+            foreach ($unverified as $candidate) {
+                $notes = $candidate['notes'] ? " | Notes: {$candidate['notes']}" : '';
+                $lines[] = "- {$candidate['platform']}: {$candidate['url']} | Status: {$candidate['status']}{$notes}";
+            }
+            $unverifiedBlock = implode("\n", $lines)."\n";
+        }
 
-{$businessInfo}
+        $gbpBlock = "- None\n";
+        if ($gbpCandidate) {
+            $notes = $gbpCandidate['notes'] ? " | Notes: {$gbpCandidate['notes']}" : '';
+            $gbpBlock = "- {$gbpCandidate['name']} ({$gbpCandidate['address']}) | Phone: {$gbpCandidate['phone']} | Rating: {$gbpCandidate['rating']} ({$gbpCandidate['reviews']} reviews) | Status: {$gbpCandidate['status']}{$notes}\n";
+        }
 
-{$auditSummary}
+        return <<<PROMPT
+You verify whether discovered social profiles and Google Business listings truly belong to a business.
 
-Please provide detailed, actionable recommendations in the following categories:
+Business:
+- Name: {$businessName}
+- Domain: {$domain}
+- Description: {$description}
+- Location: {$cities}, {$countries}
 
-1. **SEO Improvements**: Based on the website audit findings, what specific technical SEO, content, and on-page optimizations should be prioritized?
+Trusted (linked from website – already verified):
+{$trustedBlock}
 
-2. **Online Visibility Strategy**: How can this business improve its overall online presence across search engines and relevant platforms?
+Unverified social/GBP candidates:
+{$unverifiedBlock}
 
-3. **Social Media Growth**: Based on the social media audit, what platforms should they focus on and what specific actions should they take?
+Google Business Profile candidate:
+{$gbpBlock}
 
-4. **Google Business Profile Optimization**: What steps should they take to maximize their local search visibility?
+Rules:
+1. Profiles linked from the official website are VERIFIED automatically.
+2. For every other record, compare the business name, description, domain, and location before deciding.
+3. If the name or location clearly does not match, respond with "NOT OWNED".
+4. If there is no confident match, respond with "NOT FOUND".
+5. NEVER assume ownership without evidence.
 
-5. **Content Strategy**: What type of content should they create to attract their target audience and improve rankings?
-
-6. **Competitive Positioning**: If competitors are provided, how can they differentiate and compete effectively?
-
-7. **Quick Wins**: What are the top 3-5 immediate actions they can take this week for maximum impact?
-
-8. **Long-term Strategy**: What should their 3-6 month roadmap look like?
-
-Please be specific, actionable, and prioritize recommendations by impact and effort required.
+Output:
+- Provide one short verdict per record (e.g., "Instagram is verified via website", "TikTok page does not belong to this business", "No Google Business Profile exists").
+- No explanations unless explicitly requested.
+- Ignore all technical/SEO/performance data.
 PROMPT;
-
-        return $prompt;
     }
 
     /**
@@ -172,55 +216,17 @@ PROMPT;
     {
         return [
             'success' => false,
-            'note' => 'OpenAI API key not configured. Using fallback recommendations.',
-            'recommendations' => <<<RECOMMENDATIONS
-# Business Visibility Audit - Recommendations
-
-## SEO Improvements
-- Ensure all images have descriptive alt text for better accessibility and SEO
-- Implement a comprehensive internal linking strategy
-- Optimize page load speed and Core Web Vitals
-- Create unique, compelling meta descriptions for each page
-- Fix any broken links identified in the audit
-
-## Online Visibility Strategy
-- Claim and optimize all relevant business directory listings
-- Implement schema markup for better search engine understanding
-- Build high-quality backlinks from industry-relevant sources
-- Monitor and manage online reviews across all platforms
-
-## Social Media Growth
-- Establish presence on platforms where your target audience is most active
-- Create a consistent posting schedule
-- Engage with followers and respond to comments promptly
-- Share valuable content that addresses your audience's pain points
-
-## Google Business Profile Optimization
-- Complete all profile sections with accurate information
-- Upload high-quality photos regularly
-- Encourage satisfied customers to leave reviews
-- Post updates and offers weekly
-
-## Content Strategy
-- Create location-specific landing pages
-- Publish blog posts addressing common customer questions
-- Develop case studies and success stories
-- Use target keywords naturally in content
-
-## Quick Wins
-1. Add missing meta descriptions and title tags
-2. Ensure website has SSL certificate
-3. Create and submit sitemap.xml
-4. Add social media links to website
-5. Optimize Google Business Profile
-
-## Long-term Strategy
-- Develop comprehensive content marketing plan
-- Build authority through thought leadership content
-- Expand to additional marketing channels
-- Implement marketing automation
-- Regular monitoring and optimization
-RECOMMENDATIONS
+            'note' => 'AI verification unavailable. Using fallback verdicts.',
+            'recommendations' => <<<TEXT
+AI verification temporarily unavailable.
+- Facebook: NOT CHECKED
+- Instagram: NOT CHECKED
+- Twitter: NOT CHECKED
+- LinkedIn: NOT CHECKED
+- YouTube: NOT CHECKED
+- TikTok: NOT CHECKED
+- Google Business Profile: NOT CHECKED
+TEXT
         ];
     }
 }

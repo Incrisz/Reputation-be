@@ -190,68 +190,6 @@
                                                 "google_business_profile": {
                                                     "type": "object"
                                                 },
-                                                "osat_checks": {
-                                                    "properties": {
-                                                        "lighthouse": {
-                                                            "properties": {
-                                                                "scores": {
-                                                                    "type": "object",
-                                                                    "example": {
-                                                                        "performance": 0.92,
-                                                                        "seo": 0.88
-                                                                    }
-                                                                },
-                                                                "fetched_at": {
-                                                                    "type": "string",
-                                                                    "format": "date-time"
-                                                                }
-                                                            },
-                                                            "type": "object"
-                                                        },
-                                                        "security": {
-                                                            "type": "object",
-                                                            "example": {
-                                                                "score": 110,
-                                                                "grade": "B"
-                                                            }
-                                                        },
-                                                        "extractor": {
-                                                            "type": "object",
-                                                            "example": {
-                                                                "headers": {
-                                                                    "h1": {
-                                                                        "count": 1
-                                                                    }
-                                                                }
-                                                            }
-                                                        },
-                                                        "sitemap": {
-                                                            "type": "array",
-                                                            "items": {
-                                                                "type": "object"
-                                                            }
-                                                        },
-                                                        "internal_links": {
-                                                            "type": "object",
-                                                            "example": {
-                                                                "summary": {
-                                                                    "pages_crawled": 5
-                                                                }
-                                                            }
-                                                        },
-                                                        "keywords": {
-                                                            "type": "array",
-                                                            "items": {
-                                                                "type": "object"
-                                                            }
-                                                        },
-                                                        "summary": {
-                                                            "type": "string",
-                                                            "example": "First sentences of page text"
-                                                        }
-                                                    },
-                                                    "type": "object"
-                                                },
                                                 "ai_recommendations": {
                                                     "properties": {
                                                         "content": {
