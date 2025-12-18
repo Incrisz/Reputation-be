@@ -11,19 +11,49 @@ class OpenAIService
     private Client $client;
     private string $apiKey;
     private string $model;
+    private string $provider;
 
     public function __construct()
     {
-        $this->apiKey = config('services.openai.api_key', env('OPENAI_API_KEY'));
-        $this->model = config('services.openai.model', env('OPENAI_MODEL', 'gpt-4-turbo-preview'));
+        $openAiConfig = config('services.openai', []);
+        $this->provider = strtolower($openAiConfig['provider'] ?? env('LLM_PROVIDER', 'openai'));
 
-        $this->client = new Client([
-            'base_uri' => 'https://api.openai.com/v1/',
-            'timeout' => 120,
-            'headers' => [
+        if ($this->provider === 'openrouter') {
+            $routerConfig = config('services.openrouter', []);
+            $this->apiKey = $routerConfig['api_key'] ?? env('OPENROUTER_API_KEY', '');
+            $this->model = $routerConfig['model'] ?? env('OPENROUTER_MODEL', 'openrouter/auto');
+            $baseUri = rtrim($routerConfig['base_url'] ?? env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1/'), '/') . '/';
+
+            $headers = [
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
-            ]
+            ];
+
+            $referer = $routerConfig['site_url'] ?? env('OPENROUTER_SITE_URL');
+            if (! empty($referer)) {
+                $headers['HTTP-Referer'] = $referer;
+            }
+
+            $title = $routerConfig['app_title'] ?? env('OPENROUTER_APP_TITLE');
+            if (! empty($title)) {
+                $headers['X-Title'] = $title;
+            }
+        } else {
+            $this->provider = 'openai';
+            $this->apiKey = $openAiConfig['api_key'] ?? env('OPENAI_API_KEY', '');
+            $this->model = $openAiConfig['model'] ?? env('OPENAI_MODEL', 'gpt-4o-mini');
+            $baseUri = rtrim($openAiConfig['base_url'] ?? env('OPENAI_BASE_URL', 'https://api.openai.com/v1/'), '/') . '/';
+
+            $headers = [
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+            ];
+        }
+
+        $this->client = new Client([
+            'base_uri' => $baseUri,
+            'timeout' => 120,
+            'headers' => $headers,
         ]);
     }
 

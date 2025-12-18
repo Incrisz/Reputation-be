@@ -37,7 +37,17 @@ return [
 
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
-        'model' => env('OPENAI_MODEL', 'gpt-4-turbo-preview'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        'provider' => env('LLM_PROVIDER', 'openai'),
+        'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1/'),
+    ],
+
+    'openrouter' => [
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'model' => env('OPENROUTER_MODEL', 'anthropic/claude-3.5-sonnet'),
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1/'),
+        'site_url' => env('OPENROUTER_SITE_URL', env('APP_URL')),
+        'app_title' => env('OPENROUTER_APP_TITLE', env('APP_NAME', 'Reputation Audit API')),
     ],
 
     'serper' => [
