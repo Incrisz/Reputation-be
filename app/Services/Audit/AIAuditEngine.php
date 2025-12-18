@@ -1188,8 +1188,9 @@ PROMPT;
 
     private function calculateSocialScore(array $platforms): ?int
     {
-        $found = 0;
-        $confidenceBonus = 0;
+        $rawScore = 0;
+        $foundAny = false;
+        $maxRawScore = count($this->socialPlatforms) * (12 + 3); // perfect scenario (all linked from website)
 
         foreach ($platforms as $platform) {
             $source = $platform['source'] ?? 'none';
@@ -1197,20 +1198,16 @@ PROMPT;
                 continue;
             }
 
-            $found++;
-            $confidence = strtoupper((string) ($platform['confidence'] ?? 'NONE'));
-            if ($confidence === 'HIGH') {
-                $confidenceBonus += 5;
-            } elseif ($confidence === 'LOW') {
-                $confidenceBonus += 2;
-            }
+            $foundAny = true;
+            $rawScore += 12; // base score per platform found
+            $rawScore += $source === 'website' ? 3 : 2; // bonus when linked vs found externally
         }
 
-        if ($found === 0) {
+        if (! $foundAny) {
             return null;
         }
 
-        return min(100, ($found * 15) + $confidenceBonus);
+        return (int) round(min(100, ($rawScore / $maxRawScore) * 100));
     }
 
     private function countDetectedPlatforms(array $platforms): int

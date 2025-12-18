@@ -263,6 +263,9 @@ class AuditController extends Controller
             // Run AI-powered comprehensive audit
             $auditResponse = $this->aiAuditEngine->runComprehensiveAudit($input);
 
+            // Remove sensitive keys from output
+            unset($input['serper_api_key'], $input['google_places_api_key']);
+
             // Calculate execution time
             $executionTime = round(microtime(true) - $startTime, 2);
 
