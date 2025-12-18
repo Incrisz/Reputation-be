@@ -25,6 +25,19 @@ class AIAuditEngine
     private string $desktopUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
     private string $mobileUserAgent = 'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
+    private ?string $serperApiKey = null;
+
+    private ?string $googlePlacesApiKey = null;
+
+    private array $socialPlatforms = [
+        'facebook' => 'facebook.com',
+        'instagram' => 'instagram.com',
+        'linkedin' => 'linkedin.com',
+        'youtube' => 'youtube.com',
+        'twitter' => 'x.com',
+        'tiktok' => 'tiktok.com',
+    ];
+
     public function __construct()
     {
         $this->apiKey = config('services.openai.api_key', env('OPENAI_API_KEY'));
@@ -49,6 +62,12 @@ class AIAuditEngine
                 'Content-Type' => 'application/json',
             ],
         ]);
+
+        $serperKey = config('services.serper.api_key', env('SERPER_API_KEY'));
+        $googlePlacesKey = config('services.google_places.api_key', env('GOOGLE_PLACES_API_KEY'));
+
+        $this->serperApiKey = is_string($serperKey) && trim($serperKey) !== '' ? trim($serperKey) : null;
+        $this->googlePlacesApiKey = is_string($googlePlacesKey) && trim($googlePlacesKey) !== '' ? trim($googlePlacesKey) : null;
     }
 
     /**
@@ -56,7 +75,7 @@ class AIAuditEngine
      */
     public function runComprehensiveAudit(array $input): array
     {
-        // Manual mode: only fetch website content; web searches and AI analysis are disabled
+        // Manual mode: fetch website content, run OSAT probes, and enrich with SERPER + Google Places data
         $websiteContent = $this->fetchWebsiteContent($input['website_url']);
         $manualResults = $this->buildManualAuditResults($input, $websiteContent);
 
@@ -97,7 +116,7 @@ class AIAuditEngine
 
     private function buildMetadataNote(array $aiRecommendations): string
     {
-        $base = 'Social media and Google Business web searches disabled. OSAT-style probes added (lighthouse/security/extractor/sitemap/internal/keywords). ';
+        $base = 'Social media discovery leverages website parsing + SERPER; Google Business Profile detection via Places API. OSAT-style probes added (lighthouse/security/extractor/sitemap/internal/keywords). ';
 
         if (($aiRecommendations['success'] ?? false) === true) {
             return $base.'AI recommendations generated via OpenAI.';
@@ -536,12 +555,10 @@ PROMPT;
         $socialScore = $this->calculateSocialScore($socialPlatforms);
         $socialIntegrationQuality = $this->determineIntegrationQuality($socialPlatforms);
         $socialRecommendations = $this->buildSocialRecommendations($socialPlatforms);
-        $totalPlatforms = array_reduce($socialPlatforms, static function ($carry, $platform) {
-            return $carry + ((($platform['found_in_web_search'] ?? false) === true) ? 1 : 0);
-        }, 0);
+        $totalPlatforms = $this->countDetectedPlatforms($socialPlatforms);
 
         $googleBusinessProfile = $this->detectGoogleBusinessProfile($input);
-        $localPresenceScore = $googleBusinessProfile['profile_completeness_estimate'];
+        $localPresenceScore = $this->calculateLocalPresenceScore($googleBusinessProfile);
         $overallVisibilityScore = $this->calculateOverallVisibilityScore(array_filter([
             $websiteScore,
             $socialScore,
@@ -583,7 +600,9 @@ PROMPT;
                 ],
             ],
             'social_media_presence' => [
-                'platforms_detected' => $socialPlatforms,
+                'business_name' => $input['business_name'] ?? null,
+                'website' => $input['website_url'],
+                'platforms' => $socialPlatforms,
                 'social_score' => $socialScore,
                 'total_platforms' => $totalPlatforms,
                 'integration_quality' => $socialIntegrationQuality,
@@ -596,12 +615,12 @@ PROMPT;
                 'local_presence_score' => $localPresenceScore,
                 'overall_visibility_score' => $overallVisibilityScore ?? $websiteScore,
                 'grade' => 'N/A',
-                'grade_description' => 'Manual fetch-only audit with SERPER + Places lookups',
+                'grade_description' => 'Manual audit with SERPER social discovery and Google Places lookup',
             ],
             'key_findings' => [
                 'strengths' => array_slice(array_merge($technicalStrengths, $contentStrengths), 0, 5),
                 'weaknesses' => array_slice(array_merge($technicalIssues, $contentIssues), 0, 5),
-                'opportunities' => ['Use SERPER and Google Places data to expand visibility signals'],
+                'opportunities' => ['Use SERPER social matches and Google Places data to expand visibility signals'],
                 'threats' => [],
             ],
             'recommendations' => [
@@ -615,9 +634,9 @@ PROMPT;
                         'description' => 'Ensure basic crawlability files exist to improve technical SEO.',
                     ],
                 ],
-                'short_term_strategy' => ['Keep SERPER/Google Business signals in sync with on-site updates'],
-                'long_term_strategy' => ['Decide which data to feed into AI for richer scoring'],
-                'quick_wins' => ['Add meta title and description if missing', 'Increase on-page copy for key pages'],
+                'short_term_strategy' => ['Link SERPER-detected social profiles across the website and verify GBP data.'],
+                'long_term_strategy' => ['Decide which verified channels to promote and keep GBP reviews flowing.'],
+                'quick_wins' => ['Add meta title and description if missing', 'Increase on-page copy for key pages', 'Add social icons that point to verified profiles'],
             ],
             'competitive_insights' => [
                 'market_position_estimate' => 'unknown',
@@ -681,17 +700,6 @@ PROMPT;
         }
 
         return min($score, 100);
-    }
-
-    private function blankPlatformResult(): array
-    {
-        return [
-            'present' => null,
-            'url' => null,
-            'linked_from_website' => false,
-            'found_in_web_search' => false,
-            'profile_quality_estimate' => 'not_checked',
-        ];
     }
 
     private function measureResponseTime(string $url, string $userAgent): ?float
@@ -774,107 +782,75 @@ PROMPT;
         return 'good';
     }
 
-    private function detectSocialProfiles(string $html, array $input): array
+    private function detectSocialProfiles(?string $html, array $input): array
     {
-        $defaults = [
-            'facebook' => $this->blankPlatformResult(),
-            'instagram' => $this->blankPlatformResult(),
-            'twitter' => $this->blankPlatformResult(),
-            'linkedin' => $this->blankPlatformResult(),
-            'tiktok' => $this->blankPlatformResult(),
-        ];
-
-        // On-page detection
-        if ($html) {
-            $dom = new \DOMDocument();
-            libxml_use_internal_errors(true);
-            $loaded = $dom->loadHTML($html);
-            libxml_clear_errors();
-            if ($loaded) {
-                $xpath = new \DOMXPath($dom);
-                $links = $xpath->query('//a[@href]');
-
-                foreach ($links as $link) {
-                    $href = $link->getAttribute('href');
-                    if (! $href) {
-                        continue;
-                    }
-
-                    $urlLower = strtolower($href);
-
-                    if (str_contains($urlLower, 'facebook.com')) {
-                        $defaults['facebook'] = [
-                            'present' => true,
-                            'url' => $href,
-                            'linked_from_website' => true,
-                            'found_in_web_search' => false,
-                            'profile_quality_estimate' => 'unknown',
-                        ];
-                    } elseif (str_contains($urlLower, 'instagram.com')) {
-                        $defaults['instagram'] = [
-                            'present' => true,
-                            'url' => $href,
-                            'linked_from_website' => true,
-                            'found_in_web_search' => false,
-                            'profile_quality_estimate' => 'unknown',
-                        ];
-                    } elseif (str_contains($urlLower, 'twitter.com') || str_contains($urlLower, 'x.com')) {
-                        $defaults['twitter'] = [
-                            'present' => true,
-                            'url' => $href,
-                            'linked_from_website' => true,
-                            'found_in_web_search' => false,
-                            'profile_quality_estimate' => 'unknown',
-                        ];
-                    } elseif (str_contains($urlLower, 'linkedin.com')) {
-                        $defaults['linkedin'] = [
-                            'present' => true,
-                            'url' => $href,
-                            'linked_from_website' => true,
-                            'found_in_web_search' => false,
-                            'profile_quality_estimate' => 'unknown',
-                        ];
-                    } elseif (str_contains($urlLower, 'tiktok.com')) {
-                        $defaults['tiktok'] = [
-                            'present' => true,
-                            'url' => $href,
-                            'linked_from_website' => true,
-                            'found_in_web_search' => false,
-                            'profile_quality_estimate' => 'unknown',
-                        ];
-                    }
-                }
-            }
-        }
-
-        $platformDomains = [
-            'facebook' => 'facebook.com',
-            'instagram' => 'instagram.com',
-            'twitter' => 'x.com',
-            'linkedin' => 'linkedin.com',
-            'tiktok' => 'tiktok.com',
-        ];
-
+        $results = [];
+        $websiteSocials = $this->extractSocialLinksFromHtml($html);
         $tokens = $this->normalizeBusinessTokens($input['business_name'] ?? '');
 
-        foreach ($platformDomains as $platform => $domain) {
-            if ($defaults[$platform]['present'] === true) {
+        foreach ($this->socialPlatforms as $platform => $domain) {
+            if (! empty($websiteSocials[$platform])) {
+                $results[$platform] = [
+                    'url' => $websiteSocials[$platform],
+                    'source' => 'website',
+                    'confidence' => 'HIGH',
+                ];
                 continue;
             }
 
             $serperUrl = $this->findPlatformViaSerper($input, $platform, $domain, $tokens);
+
             if ($serperUrl) {
-                $defaults[$platform] = [
-                    'present' => true,
+                $results[$platform] = [
                     'url' => $serperUrl,
-                    'linked_from_website' => false,
-                    'found_in_web_search' => true,
-                    'profile_quality_estimate' => 'unknown',
+                    'source' => 'search',
+                    'confidence' => 'LOW',
                 ];
+                continue;
+            }
+
+            $results[$platform] = [
+                'url' => 'NOT FOUND',
+                'source' => 'none',
+                'confidence' => 'NONE',
+            ];
+        }
+
+        return $results;
+    }
+
+    private function extractSocialLinksFromHtml(?string $html): array
+    {
+        if (! is_string($html) || trim($html) === '') {
+            return [];
+        }
+
+        preg_match_all(
+            '/https?:\\/\\/(www\\.)?(facebook|instagram|linkedin|youtube|tiktok|x|twitter)\\.com\\/[^\\"\\\'<>\\s]+/i',
+            $html,
+            $matches
+        );
+
+        $found = [];
+
+        foreach ($matches[0] as $url) {
+            $lower = strtolower($url);
+            if (str_contains($lower, 'facebook.com')) {
+                $found['facebook'] = $url;
+            } elseif (str_contains($lower, 'instagram.com')) {
+                $found['instagram'] = $url;
+            } elseif (str_contains($lower, 'linkedin.com')) {
+                $found['linkedin'] = $url;
+            } elseif (str_contains($lower, 'youtube.com')) {
+                $found['youtube'] = $url;
+            } elseif (str_contains($lower, 'tiktok.com')) {
+                $found['tiktok'] = $url;
+            } elseif (str_contains($lower, 'x.com') || str_contains($lower, 'twitter.com')) {
+                $found['twitter'] = $url;
             }
         }
 
-        return $defaults;
+        return $found;
     }
     
     private function normalizeBusinessTokens(string $name): array
@@ -904,27 +880,13 @@ PROMPT;
         return array_unique($tokens);
     }
 
-    private function buildSerperQuery(array $input, string $platform, string $domain): string
+    private function buildSerperQuery(string $businessName, string $platform, string $domain): string
     {
-        $businessName = $input['business_name'] ?? '';
-        $cities = $input['city'] ?? '';
-        $countries = $input['country'] ?? '';
-
-        $city = is_array($cities) ? implode(' ', $cities) : $cities;
-        $country = is_array($countries) ? implode(' ', $countries) : $countries;
-
-        $baseParts = array_filter([$businessName, $city, $country]);
-        $base = trim(implode(' ', $baseParts));
-
-        if ($base === '') {
-            $base = $businessName;
-        }
-
         return match ($platform) {
-            'twitter' => "{$base} X",
-            'tiktok' => "{$base} TikTok",
-            'instagram' => "{$base} Instagram",
-            default => "{$base} site:{$domain}",
+            'youtube' => "{$businessName} YouTube channel",
+            'twitter' => "{$businessName} X",
+            'tiktok' => "{$businessName} TikTok",
+            default => "{$businessName} site:{$domain}",
         };
     }
 
@@ -1016,7 +978,12 @@ PROMPT;
             return null;
         }
 
-        $query = $this->buildSerperQuery($input, $platform, $domain);
+        $businessName = trim($input['business_name'] ?? '');
+        if ($businessName === '') {
+            return null;
+        }
+
+        $query = $this->buildSerperQuery($businessName, $platform, $domain);
         $payload = [
             'q' => $query,
             'gl' => $this->resolveSerperCountry($input),
@@ -1051,13 +1018,14 @@ PROMPT;
                 continue;
             }
 
-            $matchDomain = $domain;
             if ($platform === 'twitter') {
                 if (! str_contains($url, 'x.com') && ! str_contains($url, 'twitter.com')) {
                     continue;
                 }
                 $matchDomain = str_contains($url, 'twitter.com') ? 'twitter.com' : 'x.com';
-            } elseif (! str_contains($url, $domain)) {
+            } elseif (str_contains($url, $domain)) {
+                $matchDomain = $domain;
+            } else {
                 continue;
             }
 
@@ -1080,212 +1048,210 @@ PROMPT;
     private function detectGoogleBusinessProfile(array $input): array
     {
         $apiKey = $this->resolveGooglePlacesApiKey($input);
-
-        $base = [
-            'likely_has_profile' => null,
-            'confidence_level' => $apiKey ? 'low' : 'not_checked',
-            'profile_completeness_estimate' => null,
-            'signals' => [
-                'business_type_suitable' => null,
-                'location_specific' => null,
-                'contact_info_available' => null,
-                'reviews_mentioned' => null,
-            ],
-            'recommendations' => $apiKey
-                ? ['Google Places lookup did not return a listing; verify the business name/location.']
-                : ['Configure GOOGLE_PLACES_API_KEY to enable Google Business Profile detection.'],
-            'details' => [
-                'name' => null,
-                'address' => null,
-                'phone' => null,
-                'website' => null,
-                'rating' => null,
-                'reviews_count' => null,
-            ],
-        ];
-
         if (! $apiKey) {
-            return $base;
+            return $this->gbpNotFound('GOOGLE_PLACES_API_KEY missing');
         }
 
-        $queryParts = array_filter([
-            $input['business_name'] ?? '',
-            is_array($input['city'] ?? null) ? implode(' ', $input['city']) : ($input['city'] ?? ''),
-            is_array($input['country'] ?? null) ? implode(' ', $input['country']) : ($input['country'] ?? ''),
-        ]);
-        $query = trim(implode(' ', $queryParts));
+        $business = trim($input['business_name'] ?? '');
+        if ($business === '') {
+            return $this->gbpNotFound('Business name missing');
+        }
+
+        $location = $this->buildLocationQuery($input);
+        $query = trim("{$business} {$location}");
         if ($query === '') {
-            $query = $input['business_name'] ?? '';
+            $query = $business;
         }
 
         try {
-            $response = $this->httpClient->get('https://maps.googleapis.com/maps/api/place/findplacefromtext/json', [
+            $response = $this->httpClient->get('https://maps.googleapis.com/maps/api/place/textsearch/json', [
                 'query' => [
-                    'input' => $query,
-                    'inputtype' => 'textquery',
-                    'fields' => 'place_id,name,formatted_address,types',
+                    'query' => $query,
                     'key' => $apiKey,
                 ],
-                'timeout' => 20,
+                'timeout' => 15,
+                'headers' => [
+                    'Referer' => config('app.url', 'http://localhost'),
+                ],
             ]);
         } catch (GuzzleException $e) {
-            Log::info('Google Places findplace request failed', ['reason' => $e->getMessage()]);
-            $base['recommendations'] = ['Google Places API request failed: '.$e->getMessage()];
-            return $base;
+            Log::warning('GBP API Error - Text Search CURL', ['error' => $e->getMessage()]);
+            return $this->gbpNotFound('Text Search request failed');
         }
 
         $data = json_decode((string) $response->getBody(), true);
-        $candidate = $data['candidates'][0] ?? null;
-
-        if (! $candidate || empty($candidate['place_id'])) {
-            $base['likely_has_profile'] = false;
-            $base['confidence_level'] = 'low';
-            $base['recommendations'] = ['Google Places did not return a matching Google Business Profile listing.'];
-            return $base;
+        if (($data['status'] ?? '') !== 'OK') {
+            Log::warning('GBP API Error - Text Search Status', [
+                'status' => $data['status'] ?? 'UNKNOWN',
+                'query' => $query,
+            ]);
+            return $this->gbpNotFound('Text Search returned no results');
         }
+
+        $place = $data['results'][0] ?? null;
+        if (! $place || empty($place['place_id'])) {
+            return $this->gbpNotFound('No Google Business Profile match');
+        }
+
+        $placeId = $place['place_id'];
 
         try {
             $detailsResponse = $this->httpClient->get('https://maps.googleapis.com/maps/api/place/details/json', [
                 'query' => [
-                    'place_id' => $candidate['place_id'],
-                    'fields' => 'name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,types,business_status',
+                    'place_id' => $placeId,
+                    'fields' => 'name,formatted_address,formatted_phone_number,rating,user_ratings_total',
                     'key' => $apiKey,
                 ],
-                'timeout' => 20,
+                'timeout' => 15,
             ]);
         } catch (GuzzleException $e) {
-            Log::info('Google Places details request failed', ['reason' => $e->getMessage()]);
-            $base['recommendations'] = ['Google Places details request failed: '.$e->getMessage()];
-            return $base;
+            Log::warning('GBP API Error - Details request failed', ['error' => $e->getMessage(), 'place_id' => $placeId]);
+            return $this->gbpNotFound('Details request failed');
         }
 
-        $details = json_decode((string) $detailsResponse->getBody(), true);
-        $result = $details['result'] ?? [];
+        $detailsData = json_decode((string) $detailsResponse->getBody(), true);
+        if (($detailsData['status'] ?? '') !== 'OK') {
+            Log::warning('GBP API Error - Details Status', [
+                'status' => $detailsData['status'] ?? 'UNKNOWN',
+                'place_id' => $placeId,
+            ]);
+            return $this->gbpNotFound('Details lookup failed');
+        }
 
-        $profileDetails = [
-            'name' => $result['name'] ?? $candidate['name'] ?? null,
-            'address' => $result['formatted_address'] ?? $candidate['formatted_address'] ?? null,
-            'phone' => $result['formatted_phone_number'] ?? null,
-            'website' => $result['website'] ?? null,
-            'rating' => $result['rating'] ?? null,
-            'reviews_count' => $result['user_ratings_total'] ?? null,
+        $details = $detailsData['result'] ?? [];
+
+        return [
+            'found' => 'YES',
+            'name' => $details['name'] ?? $place['name'] ?? $business,
+            'address' => $details['formatted_address'] ?? $place['formatted_address'] ?? 'N/A',
+            'phone' => $details['formatted_phone_number'] ?? 'N/A',
+            'rating' => $details['rating'] ?? 'N/A',
+            'reviews' => $details['user_ratings_total'] ?? 'N/A',
+            'confidence' => 'very_high',
         ];
+    }
 
-        $signals = [
-            'business_type_suitable' => ! empty($result['types']),
-            'location_specific' => ! empty($profileDetails['address']),
-            'contact_info_available' => ! empty($profileDetails['phone']) || ! empty($profileDetails['website']),
-            'reviews_mentioned' => ($profileDetails['reviews_count'] ?? 0) > 0,
-        ];
+    private function buildLocationQuery(array $input): string
+    {
+        $cities = $input['city'] ?? '';
+        $countries = $input['country'] ?? '';
 
-        $profileCompleteness = $this->estimateGbpCompleteness($profileDetails);
-        $confidence = 'medium';
-        if ($profileCompleteness !== null) {
-            if ($profileCompleteness >= 70) {
-                $confidence = 'high';
-            } elseif ($profileCompleteness <= 40) {
-                $confidence = 'low';
-            }
+        $cityString = is_array($cities) ? implode(' ', array_filter($cities)) : (string) $cities;
+        $countryString = is_array($countries) ? implode(' ', array_filter($countries)) : (string) $countries;
+
+        return trim(trim($cityString).' '.trim($countryString));
+    }
+
+    private function gbpNotFound(string $reason = ''): array
+    {
+        if ($reason !== '') {
+            Log::info('Google Business Profile lookup skipped', ['reason' => $reason]);
         }
 
         return [
-            'likely_has_profile' => true,
-            'confidence_level' => $confidence,
-            'profile_completeness_estimate' => $profileCompleteness,
-            'signals' => $signals,
-            'recommendations' => $this->buildGbpRecommendations($signals, $profileDetails),
-            'details' => $profileDetails,
+            'found' => 'NO',
+            'name' => 'N/A',
+            'address' => 'N/A',
+            'phone' => 'N/A',
+            'rating' => 'N/A',
+            'reviews' => 'N/A',
+            'confidence' => 'low',
         ];
     }
 
-    private function estimateGbpCompleteness(array $details): ?int
+    private function calculateLocalPresenceScore(array $gbp): ?int
     {
-        $score = 0;
-        $total = 0;
+        if (($gbp['found'] ?? 'NO') !== 'YES') {
+            return 0;
+        }
 
-        $weights = [
-            'address' => 20,
-            'phone' => 20,
-            'website' => 20,
-            'rating' => 20,
-            'reviews_count' => 20,
-        ];
+        $rating = $gbp['rating'];
+        $reviews = $gbp['reviews'];
 
-        foreach ($weights as $field => $weight) {
-            $total += $weight;
-            if (! empty($details[$field])) {
-                if ($field === 'reviews_count' && (int) $details[$field] === 0) {
-                    continue;
-                }
-                $score += $weight;
+        $ratingScore = is_numeric($rating) ? (float) $rating : 4.0;
+        $ratingScore = ($ratingScore / 5) * 60;
+
+        $reviewScore = 10;
+        if (is_numeric($reviews)) {
+            $reviewsCount = (int) $reviews;
+            if ($reviewsCount >= 50) {
+                $reviewScore = 40;
+            } elseif ($reviewsCount >= 10) {
+                $reviewScore = 25;
+            } elseif ($reviewsCount > 0) {
+                $reviewScore = 15;
             }
         }
 
-        if ($total === 0) {
-            return null;
-        }
-
-        return min(100, (int) round(($score / $total) * 100));
-    }
-
-    private function buildGbpRecommendations(array $signals, array $details): array
-    {
-        $recommendations = [];
-
-        if (! $signals['contact_info_available']) {
-            $recommendations[] = 'Add phone and/or website details to your Google Business Profile.';
-        }
-
-        if (! $signals['reviews_mentioned']) {
-            $recommendations[] = 'Invite customers to leave Google reviews to grow trust.';
-        }
-
-        if (($details['rating'] ?? null) && $details['rating'] < 4.0) {
-            $recommendations[] = 'Address recent reviews to improve your Google rating.';
-        }
-
-        if (empty($recommendations)) {
-            $recommendations[] = 'Keep the Google Business Profile updated with accurate information.';
-        }
-
-        return $recommendations;
+        return (int) round(min(100, $ratingScore + $reviewScore));
     }
 
     private function calculateSocialScore(array $platforms): ?int
     {
-        $present = 0;
+        $found = 0;
+        $confidenceBonus = 0;
+
         foreach ($platforms as $platform) {
-            if (($platform['present'] ?? false) === true) {
-                $present++;
+            $source = $platform['source'] ?? 'none';
+            if ($source === 'none') {
+                continue;
+            }
+
+            $found++;
+            $confidence = strtoupper((string) ($platform['confidence'] ?? 'NONE'));
+            if ($confidence === 'HIGH') {
+                $confidenceBonus += 5;
+            } elseif ($confidence === 'LOW') {
+                $confidenceBonus += 2;
             }
         }
 
-        if ($present === 0) {
+        if ($found === 0) {
             return null;
         }
 
-        return min(100, $present * 20);
+        return min(100, ($found * 15) + $confidenceBonus);
+    }
+
+    private function countDetectedPlatforms(array $platforms): int
+    {
+        $count = 0;
+
+        foreach ($platforms as $platform) {
+            if (
+                ($platform['source'] ?? 'none') !== 'none'
+                && ! empty($platform['url'])
+                && $platform['url'] !== 'NOT FOUND'
+            ) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     private function determineIntegrationQuality(array $platforms): string
     {
-        $present = 0;
+        $found = 0;
         $linked = 0;
 
         foreach ($platforms as $platform) {
-            if (($platform['present'] ?? false) === true) {
-                $present++;
-                if (($platform['linked_from_website'] ?? false) === true) {
-                    $linked++;
-                }
+            $source = $platform['source'] ?? 'none';
+            if ($source === 'none') {
+                continue;
+            }
+
+            $found++;
+            if ($source === 'website') {
+                $linked++;
             }
         }
 
-        if ($present === 0) {
+        if ($found === 0) {
             return 'poor';
         }
 
-        $ratio = $linked / $present;
+        $ratio = $linked / $found;
 
         if ($ratio >= 0.75) {
             return 'excellent';
@@ -1305,9 +1271,10 @@ PROMPT;
         $recommendations = [];
 
         foreach ($platforms as $name => $platform) {
-            if (($platform['present'] ?? false) !== true) {
-                $recommendations[] = "Claim and optimize your {$name} profile for better visibility.";
-            } elseif (($platform['linked_from_website'] ?? false) !== true) {
+            $source = $platform['source'] ?? 'none';
+            if ($source === 'none') {
+                $recommendations[] = "Claim and optimize your {$name} profile, then add it to your website.";
+            } elseif ($source === 'search') {
                 $recommendations[] = "Link the {$name} profile from your website to strengthen trust signals.";
             }
         }
