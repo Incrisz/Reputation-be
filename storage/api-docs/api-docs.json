@@ -16,13 +16,86 @@
         }
     ],
     "paths": {
+        "/subscription/usage": {
+            "get": {
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get subscription usage statistics",
+                "description": "View current month's usage including audits and business count against plan limits",
+                "operationId": "getSubscriptionUsage",
+                "responses": {
+                    "200": {
+                        "description": "Usage statistics retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "audits_used": {
+                                                    "type": "integer",
+                                                    "example": 15
+                                                },
+                                                "audits_limit": {
+                                                    "type": "integer",
+                                                    "example": 50
+                                                },
+                                                "audits_percent": {
+                                                    "type": "integer",
+                                                    "example": 30
+                                                },
+                                                "businesses_used": {
+                                                    "type": "integer",
+                                                    "example": 3
+                                                },
+                                                "businesses_limit": {
+                                                    "type": "integer",
+                                                    "example": 5
+                                                },
+                                                "businesses_percent": {
+                                                    "type": "integer",
+                                                    "example": 60
+                                                },
+                                                "period_start": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                },
+                                                "period_end": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
         "/api/audit/run": {
             "post": {
                 "tags": [
                     "Audit"
                 ],
                 "summary": "Run comprehensive business visibility audit",
-                "description": "Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, OSAT-style technical probes (Lighthouse/HTTP Observatory/extractors), and AI-powered recommendations via OpenAI.",
+                "description": "Executes a complete audit including: Website SEO analysis, Social media detection, Google Business Profile check, OSAT-style technical probes (Lighthouse/HTTP Observatory/sitemap/internal/keywords), and AI-powered recommendations via OpenAI.",
                 "operationId": "91357a67bd5ec58b9b70a5dd0ca10634",
                 "requestBody": {
                     "required": true,
@@ -88,6 +161,12 @@
                                         "description": "Description of target customer base (required)",
                                         "type": "string",
                                         "example": "Small to medium-sized businesses looking to improve their digital presence"
+                                    },
+                                    "description": {
+                                        "description": "Optional description/tell-us-about-your-business text used to validate search matches",
+                                        "type": "string",
+                                        "example": "We are a branding-first technology studio focused on Abuja startups.",
+                                        "nullable": true
                                     },
                                     "competitors": {
                                         "description": "Optional list of competitor websites",
@@ -160,8 +239,17 @@
                                                                     "example": true
                                                                 },
                                                                 "page_speed_estimate": {
-                                                                    "type": "string",
-                                                                    "example": "unknown"
+                                                                    "properties": {
+                                                                        "desktop_ms": {
+                                                                            "type": "number",
+                                                                            "example": 420.5
+                                                                        },
+                                                                        "mobile_ms": {
+                                                                            "type": "number",
+                                                                            "example": 5792.1
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
                                                                 }
                                                             },
                                                             "type": "object"
@@ -308,6 +396,10 @@
         }
     },
     "tags": [
+        {
+            "name": "Subscriptions",
+            "description": "Subscriptions"
+        },
         {
             "name": "Audit",
             "description": "Audit"
