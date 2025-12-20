@@ -16,31 +16,21 @@ class SubscriptionController extends BaseController
     /**
      * List all subscription plans
      *
-     * @response 200 {
-     *   "success": true,
-     *   "data": [
-     *     {
-     *       "id": 1,
-     *       "name": "Free",
-     *       "slug": "free",
-     *       "price_monthly": 0,
-     *       "price_annual": 0,
-     *       "audits_per_month": 5,
-     *       "businesses_limit": 1,
-     *       "features": {}
-     *     },
-     *     {
-     *       "id": 2,
-     *       "name": "Pro",
-     *       "slug": "pro",
-     *       "price_monthly": 2999,
-     *       "price_annual": 29990,
-     *       "audits_per_month": 50,
-     *       "businesses_limit": 5,
-     *       "features": {}
-     *     }
-     *   ]
-     * }
+     * @OA\Get(
+     *     path="/subscription/plans",
+     *     operationId="listSubscriptionPlans",
+     *     tags={"Subscriptions"},
+     *     summary="Get subscription plans",
+     *     description="List all available subscription plans (public endpoint)",
+     *     @OA\Response(
+     *         response=200,
+     *         description="Plans retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="array", items={"type":"object"})
+     *         )
+     *     )
+     * )
      */
     public function plans()
     {
@@ -52,26 +42,23 @@ class SubscriptionController extends BaseController
     /**
      * Get current user subscription
      *
-     * @authenticated
-     * @response 200 {
-     *   "success": true,
-     *   "data": {
-     *     "id": 1,
-     *     "user_id": 1,
-     *     "subscription_plan_id": 1,
-     *     "status": "active",
-     *     "billing_cycle": "monthly",
-     *     "current_period_start": "2025-01-20T00:00:00Z",
-     *     "current_period_end": "2025-02-20T00:00:00Z",
-     *     "price": 29.99,
-     *     "plan": {
-     *       "id": 1,
-     *       "name": "Pro",
-     *       "audits_per_month": 50,
-     *       "businesses_limit": 5
-     *     }
-     *   }
-     * }
+     * @OA\Get(
+     *     path="/subscription/current",
+     *     operationId="getCurrentSubscription",
+     *     tags={"Subscriptions"},
+     *     summary="Get current subscription",
+     *     description="Retrieve user's active subscription",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Subscription retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
      */
     public function current(Request $request)
     {
@@ -83,15 +70,31 @@ class SubscriptionController extends BaseController
     /**
      * Upgrade or downgrade subscription
      *
-     * @authenticated
-     * @bodyParam subscription_plan_id int required The plan ID to upgrade/downgrade to. Example: 2
-     * @bodyParam billing_cycle string The billing cycle (monthly/annual). Example: monthly
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Subscription updated successfully",
-     *   "data": {}
-     * }
+     * @OA\Post(
+     *     path="/subscription/upgrade",
+     *     operationId="upgradeSubscription",
+     *     tags={"Subscriptions"},
+     *     summary="Upgrade subscription",
+     *     description="Upgrade to a higher tier plan",
+     *     security={{"bearerToken":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"subscription_plan_id"},
+     *             @OA\Property(property="subscription_plan_id", type="integer", example=2),
+     *             @OA\Property(property="billing_cycle", type="string", enum={"monthly","annual"}, example="monthly")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Subscription upgraded",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Subscription updated successfully"),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     )
+     * )
      */
     public function upgrade(Request $request)
     {
@@ -135,11 +138,23 @@ class SubscriptionController extends BaseController
     /**
      * Cancel subscription
      *
-     * @authenticated
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Subscription canceled successfully"
-     * }
+     * @OA\Post(
+     *     path="/subscription/cancel",
+     *     operationId="cancelSubscription",
+     *     tags={"Subscriptions"},
+     *     summary="Cancel subscription",
+     *     description="Cancel the active subscription",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Subscription cancelled",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Subscription canceled successfully")
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
      */
     public function cancel(Request $request)
     {
@@ -167,20 +182,32 @@ class SubscriptionController extends BaseController
     /**
      * Get subscription usage for current period
      *
-     * @authenticated
-     * @response 200 {
-     *   "success": true,
-     *   "data": {
-     *     "audits_used": 15,
-     *     "audits_limit": 50,
-     *     "audits_percent": 30,
-     *     "businesses_used": 3,
-     *     "businesses_limit": 5,
-     *     "businesses_percent": 60,
-     *     "period_start": "2025-01-20T00:00:00Z",
-     *     "period_end": "2025-02-20T00:00:00Z"
-     *   }
-     * }
+     * @OA\Get(
+     *     path="/subscription/usage",
+     *     operationId="getSubscriptionUsage",
+     *     tags={"Subscriptions"},
+     *     summary="Get subscription usage",
+     *     description="Get current usage statistics against plan limits",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Usage retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="audits_used", type="integer"),
+     *                 @OA\Property(property="audits_limit", type="integer"),
+     *                 @OA\Property(property="audits_percent", type="integer"),
+     *                 @OA\Property(property="businesses_used", type="integer"),
+     *                 @OA\Property(property="businesses_limit", type="integer"),
+     *                 @OA\Property(property="businesses_percent", type="integer"),
+     *                 @OA\Property(property="period_start", type="string", format="date-time"),
+     *                 @OA\Property(property="period_end", type="string", format="date-time")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
      */
     public function usage(Request $request)
     {

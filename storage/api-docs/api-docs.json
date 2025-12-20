@@ -16,17 +16,1116 @@
         }
     ],
     "paths": {
+        "/audits": {
+            "get": {
+                "tags": [
+                    "Audits"
+                ],
+                "summary": "List all audits",
+                "description": "Get paginated list of audits",
+                "operationId": "listAudits",
+                "parameters": [
+                    {
+                        "name": "business_id",
+                        "in": "query",
+                        "description": "Filter by business ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Page number",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Items per page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Audits retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/audits/{id}": {
+            "get": {
+                "tags": [
+                    "Audits"
+                ],
+                "summary": "Get audit details",
+                "description": "Retrieve a specific audit report with all findings",
+                "operationId": "getAudit",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Audit ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Audit retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Audit not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Audits"
+                ],
+                "summary": "Delete audit",
+                "description": "Remove an audit record",
+                "operationId": "deleteAudit",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Audit ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Audit deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Audit deleted successfully"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Audit not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/audits/trigger": {
+            "post": {
+                "tags": [
+                    "Audits"
+                ],
+                "summary": "Trigger a new audit",
+                "description": "Start a comprehensive audit for a business",
+                "operationId": "triggerAudit",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "business_id"
+                                ],
+                                "properties": {
+                                    "business_id": {
+                                        "type": "integer",
+                                        "example": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "Audit triggered",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Audit started successfully"
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Monthly audit quota exceeded"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/audits/compare": {
+            "get": {
+                "tags": [
+                    "Audits"
+                ],
+                "summary": "Compare two audits",
+                "description": "Compare metrics between two audit reports",
+                "operationId": "compareAudits",
+                "parameters": [
+                    {
+                        "name": "audit_1_id",
+                        "in": "query",
+                        "description": "First audit ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "audit_2_id",
+                        "in": "query",
+                        "description": "Second audit ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Comparison retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/auth/register": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Register a new user account",
+                "description": "Create a new user account. Automatically assigns Free plan.",
+                "operationId": "register",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "email",
+                                    "password",
+                                    "password_confirmation"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "John Doe"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "john@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password123"
+                                    },
+                                    "password_confirmation": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password123"
+                                    },
+                                    "phone": {
+                                        "type": "string",
+                                        "example": "+1234567890"
+                                    },
+                                    "company": {
+                                        "type": "string",
+                                        "example": "Acme Corp"
+                                    },
+                                    "industry": {
+                                        "type": "string",
+                                        "example": "Technology"
+                                    },
+                                    "location": {
+                                        "type": "string",
+                                        "example": "New York, USA"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "User registered successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User registered successfully"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "token": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Login user",
+                "description": "Authenticate user with email and password. Returns authentication token.",
+                "operationId": "login",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "john@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password123"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Login successful"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "token": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials"
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Logout user",
+                "description": "Invalidate the authentication token",
+                "operationId": "logout",
+                "responses": {
+                    "200": {
+                        "description": "Logout successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Logout successful"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Get current user profile",
+                "description": "Retrieve the authenticated user's profile information",
+                "operationId": "getProfile",
+                "responses": {
+                    "200": {
+                        "description": "User profile retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "phone": {
+                                                    "type": "string"
+                                                },
+                                                "company": {
+                                                    "type": "string"
+                                                },
+                                                "industry": {
+                                                    "type": "string"
+                                                },
+                                                "location": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/businesses": {
+            "get": {
+                "tags": [
+                    "Businesses"
+                ],
+                "summary": "List all businesses",
+                "description": "Get paginated list of user's businesses",
+                "operationId": "listBusinesses",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Page number",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Items per page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by status (active/inactive)",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Businesses retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Businesses"
+                ],
+                "summary": "Create a new business",
+                "description": "Add a new business to the user's portfolio",
+                "operationId": "createBusiness",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "website_url",
+                                    "business_name"
+                                ],
+                                "properties": {
+                                    "website_url": {
+                                        "type": "string",
+                                        "format": "url",
+                                        "example": "https://www.example.com"
+                                    },
+                                    "business_name": {
+                                        "type": "string",
+                                        "example": "Example Business"
+                                    },
+                                    "industry": {
+                                        "type": "string",
+                                        "example": "Technology"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "example": "USA"
+                                    },
+                                    "city": {
+                                        "type": "string",
+                                        "example": "New York"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Business description"
+                                    },
+                                    "keywords": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "logo_url": {
+                                        "type": "string",
+                                        "format": "url",
+                                        "example": "https://example.com/logo.png"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Business created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Business created successfully"
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/businesses/{id}": {
+            "get": {
+                "tags": [
+                    "Businesses"
+                ],
+                "summary": "Get business details",
+                "description": "Retrieve detailed information about a specific business",
+                "operationId": "getBusiness",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Business ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Business retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Business not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Businesses"
+                ],
+                "summary": "Update business",
+                "description": "Update business information",
+                "operationId": "updateBusiness",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "business_name": {
+                                        "type": "string",
+                                        "example": "Updated Business"
+                                    },
+                                    "industry": {
+                                        "type": "string",
+                                        "example": "Healthcare"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Updated description"
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "active",
+                                            "inactive"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Business updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Business updated successfully"
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Business not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Businesses"
+                ],
+                "summary": "Delete business",
+                "description": "Remove a business from the system",
+                "operationId": "deleteBusiness",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Business deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Business deleted successfully"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Business not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/subscription/plans": {
+            "get": {
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get subscription plans",
+                "description": "List all available subscription plans (public endpoint)",
+                "operationId": "listSubscriptionPlans",
+                "responses": {
+                    "200": {
+                        "description": "Plans retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/current": {
+            "get": {
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get current subscription",
+                "description": "Retrieve user's active subscription",
+                "operationId": "getCurrentSubscription",
+                "responses": {
+                    "200": {
+                        "description": "Subscription retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/subscription/upgrade": {
+            "post": {
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Upgrade subscription",
+                "description": "Upgrade to a higher tier plan",
+                "operationId": "upgradeSubscription",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "subscription_plan_id"
+                                ],
+                                "properties": {
+                                    "subscription_plan_id": {
+                                        "type": "integer",
+                                        "example": 2
+                                    },
+                                    "billing_cycle": {
+                                        "type": "string",
+                                        "enum": [
+                                            "monthly",
+                                            "annual"
+                                        ],
+                                        "example": "monthly"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Subscription upgraded",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Subscription updated successfully"
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
+        "/subscription/cancel": {
+            "post": {
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Cancel subscription",
+                "description": "Cancel the active subscription",
+                "operationId": "cancelSubscription",
+                "responses": {
+                    "200": {
+                        "description": "Subscription cancelled",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Subscription canceled successfully"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerToken": []
+                    }
+                ]
+            }
+        },
         "/subscription/usage": {
             "get": {
                 "tags": [
                     "Subscriptions"
                 ],
-                "summary": "Get subscription usage statistics",
-                "description": "View current month's usage including audits and business count against plan limits",
+                "summary": "Get subscription usage",
+                "description": "Get current usage statistics against plan limits",
                 "operationId": "getSubscriptionUsage",
                 "responses": {
                     "200": {
-                        "description": "Usage statistics retrieved",
+                        "description": "Usage retrieved",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -38,28 +1137,22 @@
                                         "data": {
                                             "properties": {
                                                 "audits_used": {
-                                                    "type": "integer",
-                                                    "example": 15
+                                                    "type": "integer"
                                                 },
                                                 "audits_limit": {
-                                                    "type": "integer",
-                                                    "example": 50
+                                                    "type": "integer"
                                                 },
                                                 "audits_percent": {
-                                                    "type": "integer",
-                                                    "example": 30
+                                                    "type": "integer"
                                                 },
                                                 "businesses_used": {
-                                                    "type": "integer",
-                                                    "example": 3
+                                                    "type": "integer"
                                                 },
                                                 "businesses_limit": {
-                                                    "type": "integer",
-                                                    "example": 5
+                                                    "type": "integer"
                                                 },
                                                 "businesses_percent": {
-                                                    "type": "integer",
-                                                    "example": 60
+                                                    "type": "integer"
                                                 },
                                                 "period_start": {
                                                     "type": "string",
@@ -396,6 +1489,18 @@
         }
     },
     "tags": [
+        {
+            "name": "Audits",
+            "description": "Audits"
+        },
+        {
+            "name": "Authentication",
+            "description": "Authentication"
+        },
+        {
+            "name": "Businesses",
+            "description": "Businesses"
+        },
         {
             "name": "Subscriptions",
             "description": "Subscriptions"

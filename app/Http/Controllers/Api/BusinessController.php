@@ -15,29 +15,27 @@ class BusinessController extends BaseController
     /**
      * List all businesses for authenticated user
      *
-     * @authenticated
-     * @queryParam page int The page number for pagination. Example: 1
-     * @queryParam per_page int Number of items per page. Example: 15
-     * @queryParam status string Filter by status (active/inactive). Example: active
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "data": [
-     *     {
-     *       "id": 1,
-     *       "user_id": 1,
-     *       "website_url": "https://www.example.com",
-     *       "business_name": "Example Business",
-     *       "industry": "Technology",
-     *       "country": "USA",
-     *       "city": "New York",
-     *       "status": "active",
-     *       "last_audited_at": "2025-01-20T10:30:00Z",
-     *       "created_at": "2025-01-15T10:30:00Z"
-     *     }
-     *   ],
-     *   "pagination": {}
-     * }
+     * @OA\Get(
+     *     path="/businesses",
+     *     operationId="listBusinesses",
+     *     tags={"Businesses"},
+     *     summary="List all businesses",
+     *     description="Get paginated list of user's businesses",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Parameter(name="page", in="query", description="Page number", @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="per_page", in="query", description="Items per page", @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="status", in="query", description="Filter by status (active/inactive)", @OA\Schema(type="string")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Businesses retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="array", items=@OA\Items(type="object")),
+     *             @OA\Property(property="meta", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
      */
     public function index(Request $request)
     {
@@ -55,29 +53,38 @@ class BusinessController extends BaseController
     /**
      * Create a new business
      *
-     * @authenticated
-     * @bodyParam website_url string required The website URL. Example: https://www.example.com
-     * @bodyParam business_name string required The business name. Example: Example Business
-     * @bodyParam industry string optional The industry. Example: Technology
-     * @bodyParam country string optional The country. Example: USA
-     * @bodyParam city string optional The city. Example: New York
-     * @bodyParam description string optional Business description. Example: A great business
-     * @bodyParam keywords string[] optional Keywords array. Example: ["seo", "digital"]
-     * @bodyParam logo_url string optional Logo URL. Example: https://example.com/logo.png
-     *
-     * @response 201 {
-     *   "success": true,
-     *   "message": "Business created successfully",
-     *   "data": {
-     *     "id": 1,
-     *     "user_id": 1,
-     *     "website_url": "https://www.example.com",
-     *     "business_name": "Example Business",
-     *     "industry": "Technology",
-     *     "status": "active",
-     *     "created_at": "2025-01-20T10:30:00Z"
-     *   }
-     * }
+     * @OA\Post(
+     *     path="/businesses",
+     *     operationId="createBusiness",
+     *     tags={"Businesses"},
+     *     summary="Create a new business",
+     *     description="Add a new business to the user's portfolio",
+     *     security={{"bearerToken":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"website_url","business_name"},
+     *             @OA\Property(property="website_url", type="string", format="url", example="https://www.example.com"),
+     *             @OA\Property(property="business_name", type="string", example="Example Business"),
+     *             @OA\Property(property="industry", type="string", example="Technology"),
+     *             @OA\Property(property="country", type="string", example="USA"),
+     *             @OA\Property(property="city", type="string", example="New York"),
+     *             @OA\Property(property="description", type="string", example="Business description"),
+     *             @OA\Property(property="keywords", type="array", items={"type":"string"}),
+     *             @OA\Property(property="logo_url", type="string", format="url", example="https://example.com/logo.png")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="Business created",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Business created successfully"),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
      */
     public function store(Request $request)
     {
@@ -114,18 +121,24 @@ class BusinessController extends BaseController
     /**
      * Get a specific business
      *
-     * @authenticated
-     * @urlParam id int required The business ID. Example: 1
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "data": {
-     *     "id": 1,
-     *     "user_id": 1,
-     *     "website_url": "https://www.example.com",
-     *     "business_name": "Example Business"
-     *   }
-     * }
+     * @OA\Get(
+     *     path="/businesses/{id}",
+     *     operationId="getBusiness",
+     *     tags={"Businesses"},
+     *     summary="Get business details",
+     *     description="Retrieve detailed information about a specific business",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, description="Business ID", @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Business retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="Business not found")
+     * )
      */
     public function show(Request $request, Business $business)
     {
@@ -137,18 +150,33 @@ class BusinessController extends BaseController
     /**
      * Update a business
      *
-     * @authenticated
-     * @urlParam id int required The business ID. Example: 1
-     * @bodyParam business_name string The business name. Example: Updated Business
-     * @bodyParam industry string The industry. Example: Healthcare
-     * @bodyParam description string Business description. Example: Updated description
-     * @bodyParam status string The status (active/inactive). Example: active
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Business updated successfully",
-     *   "data": {}
-     * }
+     * @OA\Put(
+     *     path="/businesses/{id}",
+     *     operationId="updateBusiness",
+     *     tags={"Businesses"},
+     *     summary="Update business",
+     *     description="Update business information",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\RequestBody(
+     *         @OA\JsonContent(
+     *             @OA\Property(property="business_name", type="string", example="Updated Business"),
+     *             @OA\Property(property="industry", type="string", example="Healthcare"),
+     *             @OA\Property(property="description", type="string", example="Updated description"),
+     *             @OA\Property(property="status", type="string", enum={"active","inactive"})
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Business updated",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Business updated successfully"),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="Business not found")
+     * )
      */
     public function update(Request $request, Business $business)
     {
@@ -184,13 +212,24 @@ class BusinessController extends BaseController
     /**
      * Delete a business
      *
-     * @authenticated
-     * @urlParam id int required The business ID. Example: 1
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Business deleted successfully"
-     * }
+     * @OA\Delete(
+     *     path="/businesses/{id}",
+     *     operationId="deleteBusiness",
+     *     tags={"Businesses"},
+     *     summary="Delete business",
+     *     description="Remove a business from the system",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Business deleted",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Business deleted successfully")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="Business not found")
+     * )
      */
     public function destroy(Request $request, Business $business)
     {

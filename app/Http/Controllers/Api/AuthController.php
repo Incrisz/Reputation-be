@@ -20,25 +20,42 @@ class AuthController extends BaseController
     /**
      * Register a new user
      *
-     * @bodyParam name string required The user's full name. Example: John Doe
-     * @bodyParam email string required The user's email address. Example: john@example.com
-     * @bodyParam password string required Password with minimum 8 characters. Example: password123
-     * @bodyParam password_confirmation string required Password confirmation. Example: password123
-     * @bodyParam phone string optional The user's phone number. Example: +1234567890
-     * @bodyParam company string optional The company name. Example: Acme Corp
-     * @bodyParam industry string optional The industry. Example: Technology
-     * @bodyParam location string optional The user's location. Example: New York, USA
-     *
-     * @response 201 {
-     *   "success": true,
-     *   "message": "User registered successfully",
-     *   "data": {
-     *     "id": 1,
-     *     "name": "John Doe",
-     *     "email": "john@example.com",
-     *     "token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-     *   }
-     * }
+     * @OA\Post(
+     *     path="/auth/register",
+     *     operationId="register",
+     *     tags={"Authentication"},
+     *     summary="Register a new user account",
+     *     description="Create a new user account. Automatically assigns Free plan.",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"name","email","password","password_confirmation"},
+     *             @OA\Property(property="name", type="string", example="John Doe"),
+     *             @OA\Property(property="email", type="string", format="email", example="john@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="password123"),
+     *             @OA\Property(property="password_confirmation", type="string", format="password", example="password123"),
+     *             @OA\Property(property="phone", type="string", example="+1234567890"),
+     *             @OA\Property(property="company", type="string", example="Acme Corp"),
+     *             @OA\Property(property="industry", type="string", example="Technology"),
+     *             @OA\Property(property="location", type="string", example="New York, USA")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="User registered successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="User registered successfully"),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="name", type="string"),
+     *                 @OA\Property(property="email", type="string"),
+     *                 @OA\Property(property="token", type="string")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
      */
     public function register(Request $request)
     {
@@ -109,19 +126,36 @@ class AuthController extends BaseController
     /**
      * Login user
      *
-     * @bodyParam email string required The user's email address. Example: john@example.com
-     * @bodyParam password string required The user's password. Example: password123
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Login successful",
-     *   "data": {
-     *     "id": 1,
-     *     "name": "John Doe",
-     *     "email": "john@example.com",
-     *     "token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-     *   }
-     * }
+     * @OA\Post(
+     *     path="/auth/login",
+     *     operationId="login",
+     *     tags={"Authentication"},
+     *     summary="Login user",
+     *     description="Authenticate user with email and password. Returns authentication token.",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"email","password"},
+     *             @OA\Property(property="email", type="string", format="email", example="john@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="password123")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Login successful",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Login successful"),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="name", type="string"),
+     *                 @OA\Property(property="email", type="string"),
+     *                 @OA\Property(property="token", type="string")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Invalid credentials")
+     * )
      */
     public function login(Request $request)
     {
@@ -167,11 +201,23 @@ class AuthController extends BaseController
     /**
      * Logout user
      *
-     * @authenticated
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Logout successful"
-     * }
+     * @OA\Post(
+     *     path="/auth/logout",
+     *     operationId="logout",
+     *     tags={"Authentication"},
+     *     summary="Logout user",
+     *     description="Invalidate the authentication token",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Logout successful",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Logout successful")
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
      */
     public function logout(Request $request)
     {
@@ -194,21 +240,32 @@ class AuthController extends BaseController
     /**
      * Get authenticated user profile
      *
-     * @authenticated
-     * @response 200 {
-     *   "success": true,
-     *   "data": {
-     *     "id": 1,
-     *     "name": "John Doe",
-     *     "email": "john@example.com",
-     *     "phone": "+1234567890",
-     *     "company": "Acme Corp",
-     *     "industry": "Technology",
-     *     "location": "New York, USA",
-     *     "status": "active",
-     *     "created_at": "2025-01-20T10:30:00Z"
-     *   }
-     * }
+     * @OA\Get(
+     *     path="/auth/me",
+     *     operationId="getProfile",
+     *     tags={"Authentication"},
+     *     summary="Get current user profile",
+     *     description="Retrieve the authenticated user's profile information",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="User profile retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="name", type="string"),
+     *                 @OA\Property(property="email", type="string"),
+     *                 @OA\Property(property="phone", type="string"),
+     *                 @OA\Property(property="company", type="string"),
+     *                 @OA\Property(property="industry", type="string"),
+     *                 @OA\Property(property="location", type="string"),
+     *                 @OA\Property(property="status", type="string")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
      */
     public function me(Request $request)
     {

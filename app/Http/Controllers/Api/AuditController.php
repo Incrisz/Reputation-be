@@ -16,30 +16,27 @@ class AuditController extends BaseController
     /**
      * List all audits for authenticated user
      *
-     * @authenticated
-     * @queryParam business_id int Filter by business ID. Example: 1
-     * @queryParam page int The page number for pagination. Example: 1
-     * @queryParam per_page int Number of items per page. Example: 15
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "data": [
-     *     {
-     *       "id": 1,
-     *       "user_id": 1,
-     *       "business_id": 1,
-     *       "overall_score": 85,
-     *       "execution_time_ms": 3500,
-     *       "model_used": "gpt-4",
-     *       "created_at": "2025-01-20T10:30:00Z",
-     *       "business": {
-     *         "id": 1,
-     *         "business_name": "Example Business"
-     *       }
-     *     }
-     *   ],
-     *   "pagination": {}
-     * }
+     * @OA\Get(
+     *     path="/audits",
+     *     operationId="listAudits",
+     *     tags={"Audits"},
+     *     summary="List all audits",
+     *     description="Get paginated list of audits",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Parameter(name="business_id", in="query", description="Filter by business ID", @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="page", in="query", description="Page number", @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="per_page", in="query", description="Items per page", @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Audits retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="array", items=@OA\Items(type="object")),
+     *             @OA\Property(property="meta", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthorized")
+     * )
      */
     public function index(Request $request)
     {
@@ -59,30 +56,24 @@ class AuditController extends BaseController
     /**
      * Get audit details with all findings and recommendations
      *
-     * @authenticated
-     * @urlParam id int required The audit ID. Example: 1
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "data": {
-     *     "id": 1,
-     *     "user_id": 1,
-     *     "business_id": 1,
-     *     "overall_score": 85,
-     *     "execution_time_ms": 3500,
-     *     "model_used": "gpt-4",
-     *     "created_at": "2025-01-20T10:30:00Z",
-     *     "website_audit": {
-     *       "id": 1,
-     *       "technical_seo_score": 80,
-     *       "content_quality_score": 90
-     *     },
-     *     "website_audit_findings": [],
-     *     "social_media_profiles": [],
-     *     "google_business_profile": {},
-     *     "ai_recommendations": []
-     *   }
-     * }
+     * @OA\Get(
+     *     path="/audits/{id}",
+     *     operationId="getAudit",
+     *     tags={"Audits"},
+     *     summary="Get audit details",
+     *     description="Retrieve a specific audit report with all findings",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, description="Audit ID", @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Audit retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="Audit not found")
+     * )
      */
     public function show(Request $request, Audit $audit)
     {
@@ -100,20 +91,31 @@ class AuditController extends BaseController
     /**
      * Trigger a new audit for a business
      *
-     * @authenticated
-     * @bodyParam business_id int required The business ID to audit. Example: 1
-     *
-     * @response 202 {
-     *   "success": true,
-     *   "message": "Audit started successfully",
-     *   "data": {
-     *     "id": 1,
-     *     "user_id": 1,
-     *     "business_id": 1,
-     *     "status": "processing",
-     *     "created_at": "2025-01-20T10:30:00Z"
-     *   }
-     * }
+     * @OA\Post(
+     *     path="/audits/trigger",
+     *     operationId="triggerAudit",
+     *     tags={"Audits"},
+     *     summary="Trigger a new audit",
+     *     description="Start a comprehensive audit for a business",
+     *     security={{"bearerToken":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"business_id"},
+     *             @OA\Property(property="business_id", type="integer", example=1)
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=202,
+     *         description="Audit triggered",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Audit started successfully"),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=429, description="Monthly audit quota exceeded")
+     * )
      */
     public function trigger(Request $request)
     {
@@ -172,20 +174,24 @@ class AuditController extends BaseController
     /**
      * Get audit comparison between two audits
      *
-     * @authenticated
-     * @queryParam audit_1_id int required First audit ID. Example: 1
-     * @queryParam audit_2_id int required Second audit ID. Example: 2
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "data": {
-     *     "audit_1": {},
-     *     "audit_2": {},
-     *     "score_improvement": 10,
-     *     "key_improvements": [],
-     *     "areas_declined": []
-     *   }
-     * }
+     * @OA\Get(
+     *     path="/audits/compare",
+     *     operationId="compareAudits",
+     *     tags={"Audits"},
+     *     summary="Compare two audits",
+     *     description="Compare metrics between two audit reports",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Parameter(name="audit_1_id", in="query", required=true, description="First audit ID", @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="audit_2_id", in="query", required=true, description="Second audit ID", @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Comparison retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     )
+     * )
      */
     public function compare(Request $request)
     {
@@ -221,13 +227,24 @@ class AuditController extends BaseController
     /**
      * Delete an audit
      *
-     * @authenticated
-     * @urlParam id int required The audit ID. Example: 1
-     *
-     * @response 200 {
-     *   "success": true,
-     *   "message": "Audit deleted successfully"
-     * }
+     * @OA\Delete(
+     *     path="/audits/{id}",
+     *     operationId="deleteAudit",
+     *     tags={"Audits"},
+     *     summary="Delete audit",
+     *     description="Remove an audit record",
+     *     security={{"bearerToken":{}}},
+     *     @OA\Parameter(name="id", in="path", required=true, description="Audit ID", @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Audit deleted",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Audit deleted successfully")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="Audit not found")
+     * )
      */
     public function destroy(Request $request, Audit $audit)
     {
